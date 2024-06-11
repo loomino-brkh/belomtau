@@ -293,4 +293,4 @@ dist
 .pnp.*
 
 *.code-workspace
-
+.vscode/*
