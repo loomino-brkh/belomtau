@@ -26,6 +26,6 @@ Perubahan ide lagi. Jadi, sekarang, idenya adalah menggunakan freebsd sebagai ho
 
 # Rabu, 26 Juni 2024
 
-Another change, pake freebsd ribet, soale softwarenya tidak up to date, sekarang devel lagi di archlinux.
+Another change, pake freebsd ribet, soale softwarenya tidak up to date, sekarang devel lagi di archlinux.</br>
 
 Kita akan mencoba menggunakan podman, instead of docker
