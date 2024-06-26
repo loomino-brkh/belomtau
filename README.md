@@ -23,3 +23,7 @@ Key point:<br />
 Perubahan ide lagi. Jadi, sekarang, idenya adalah menggunakan freebsd sebagai host. Di dalamnya akan diinstall postgres, redis, nginx, dan software lain yang diperlukan. Lalu, build django di dalamnya.<br />
 
 - Ide ini muncul setelah melakukan riset untuk docker compose dan kubernetes mengenai automasi yang tersedia. Ternyata semua mengarah (menurut saya) pada keribetan yang berele-tele. Padahal prinsip awal yang saya pegang adalah "do not reinvent the wheel". Jadi buat apa automasi dengan sesuatu yang baru, padahal sudah ada shell script. Yah, ntah lah. Bisa jadi besok-besok berubah lagi. Hahahaha....
+
+# Rabu, 26 Juni 2024
+
+Onather change, pake freebsd ribet, soale softwarenya tidak up to date, sekarang devel lagi di archlinux.
