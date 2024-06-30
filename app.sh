@@ -1,155 +1,101 @@
 #!/bin/bash
 
-# Variables
-PROJECT_NAME="lomtau"
-PROJECT_DIR="./$PROJECT_NAME"
-DB_NAME="$PROJECT_NAME-database"
-DB_USER="$PROJECT_NAME"
-DB_PASS="superkeren"
-DB_CONTAINER_NAME="$PROJECT_NAME-postgresql"
-REDIS_CONTAINER_NAME="$PROJECT_NAME-redis"
-WEB_CONTAINER_NAME="$PROJECT_NAME-web"
-POD_NAME="$PROJECT_NAME-pod"
+# Configuration
+APP_NAME="lomtau"
+PROJECT_DIR="$HOME/django_lomtau"
+VENV_DIR="$PROJECT_DIR/venv"
+HOST_IP="192.168.22.10"
+POD_NAME="${APP_NAME}_pod"
+POSTGRES_IMAGE="docker.io/library/postgres:16"
+PYTHON_IMAGE="docker.io/library/python:latest"
+REDIS_IMAGE="docker.io/library/redis:latest"
+NGINX_IMAGE="docker.io/library/nginx:latest"
+POSTGRES_DB="${APP_NAME}_db"
+POSTGRES_USER="${APP_NAME}_user"
+POSTGRES_PASSWORD="supersecure"
+DJANGO_SETTINGS_MODULE="${APP_NAME}.settings"
+REQUIREMENTS_FILE="$PROJECT_DIR/requirements.txt"
 
-# Create a new Django project with PostgreSQL and Redis using Podman
-function create_django_project() {
-    # Create Django project directory
-    mkdir -p $PROJECT_DIR
-    cd $PROJECT_DIR || exit
+# Create project directory if it doesn't exist
+mkdir -p "$PROJECT_DIR"
+mkdir -p "$PROJECT_DIR/db_data"
 
-    # Initialize Django project
-    podman run --rm -v $PWD:/app:z -w /app python bash -c "pip install django && django-admin startproject $PROJECT_NAME ."
+# Create requirements.txt if it doesn't exist
+cat > "$REQUIREMENTS_FILE" <<EOL
+Django>=4.0
+psycopg2-binary
+gunicorn
+django-redis
+EOL
 
-    # Generate Dockerfile for Django app
-    cat <<EOF > Dockerfile
-FROM python
+# Create virtualenv if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
+fi
 
-WORKDIR /app
-COPY . /app
+# Activate virtualenv and install requirements
 
-RUN pip install -r requirements.txt
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install -r /app/requirements.txt"
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
-EOF
+# Create Django project if it doesn't exist
+if [ ! -d "$PROJECT_DIR/$APP_NAME" ]; then
+    podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
+fi
 
-    # Generate requirements.txt
-    echo "django\npsycopg2\nredis" > requirements.txt
+# Create the pod
+podman pod create --name "$POD_NAME" --publish 8080:8080 --network bridge
 
-    # Update Django settings
-    sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" $PROJECT_NAME/settings.py
-    sed -i "s/'NAME': BASE_DIR / 'db.sqlite3'/'NAME': '$DB_NAME'/g" $PROJECT_NAME/settings.py
-    sed -i "s/# 'USER': 'mydatabaseuser'/'USER': '$DB_USER'/g" $PROJECT_NAME/settings.py
-    sed -i "s/# 'PASSWORD': 'mypassword'/'PASSWORD': '$DB_PASS'/g" $PROJECT_NAME/settings.py
-    sed -i "s/# 'HOST': 'localhost'/'HOST': 'db'/g" $PROJECT_NAME/settings.py
-    sed -i "s/# 'PORT': '5432'/'PORT': '5432'/g" $PROJECT_NAME/settings.py
+# Start PostgreSQL container
+podman run --rm -d --pod "$POD_NAME" --name postgres \
+    -e POSTGRES_DB="$POSTGRES_DB" \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data" \
+    "$POSTGRES_IMAGE"
 
-    # Configure Redis as cache backend
-    cat <<EOF >> $PROJECT_NAME/settings.py
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://redis:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
+# Start Redis container
+podman run --rm -d --pod "$POD_NAME" --name redis \
+    -v redis_data:/data \
+    "$REDIS_IMAGE"
+
+# Configure Django settings
+SETTINGS_FILE="$PROJECT_DIR/$APP_NAME/$APP_NAME/settings.py"
+
+cp -f $PWD/settings.py $SETTINGS_FILE
+
+# Run database migrations
+podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/$APP_NAME "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+
+# Start Gunicorn server
+cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
+#!/bin/bash
+source /app/venv/bin/activate
+cd /app/${APP_NAME}
+exec gunicorn --workers 3 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+EOL
+chmod +x "$PROJECT_DIR/gunicorn_start.sh"
+
+podman run --rm -d --pod "$POD_NAME" --name gunicorn \
+    -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
+
+# Configure and start Nginx
+cat > "$PROJECT_DIR/nginx.conf" <<EOL
+server {
+    listen 8080;
+    server_name $HOST_IP;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
-EOF
-    echo "Django project created successfully!"
-}
+EOL
 
-# Deploy the Pod with PostgreSQL and Redis
-function deploy_pod() {
-    podman pod create --name $POD_NAME -p 8000:8000
+podman run --rm -d --pod "$POD_NAME" --name nginx \
+    -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+    "$NGINX_IMAGE"
 
-    # PostgreSQL container
-    podman run -d --pod $POD_NAME --name $DB_CONTAINER_NAME \
-        -e POSTGRES_DB=$DB_NAME \
-        -e POSTGRES_USER=$DB_USER \
-        -e POSTGRES_PASSWORD=$DB_PASS \
-        postgres:16
-
-    # Redis container
-    podman run -d --pod $POD_NAME --name $REDIS_CONTAINER_NAME redis:latest
-
-    # Django web container
-    podman build -t django_web .
-    podman run -d --pod $POD_NAME --name $WEB_CONTAINER_NAME \
-        -v $PWD:/app:z -w /app django_web
-
-    echo "Pod deployed successfully!"
-}
-
-# Start the Pod
-function start_pod() {
-    podman pod start $POD_NAME
-    echo "Pod started successfully!"
-}
-
-# Stop the Pod
-function stop_pod() {
-    podman pod stop $POD_NAME
-    echo "Pod stopped successfully!"
-}
-
-# Destroy the Pod
-function destroy_pod() {
-    podman pod rm -f $POD_NAME
-    echo "Pod destroyed successfully!"
-}
-
-# Export the database
-function export_db() {
-    podman exec -t $DB_CONTAINER_NAME pg_dump -U $DB_USER $DB_NAME > db_backup.sql
-    echo "Database exported successfully!"
-}
-
-# Import the database
-function import_db() {
-    if [ ! -f db_backup.sql ]; then
-        echo "Database backup file not found!"
-        exit 1
-    fi
-    podman exec -i $DB_CONTAINER_NAME psql -U $DB_USER $DB_NAME < db_backup.sql
-    echo "Database imported successfully!"
-}
-
-# Watch for changes in the development directory
-function watch_directory() {
-    inotifywait -m -e modify,create,delete ./ |
-    while read -r directory events filename; do
-        echo "Change detected in $filename ($events). Restarting Django server..."
-        podman restart $WEB_CONTAINER_NAME
-    done
-}
-
-# Command line arguments
-case "$1" in
-    create)
-        create_django_project
-        ;;
-    deploy)
-        deploy_pod
-        ;;
-    start)
-        start_pod
-        ;;
-    stop)
-        stop_pod
-        ;;
-    destroy)
-        destroy_pod
-        ;;
-    export)
-        export_db
-        ;;
-    import)
-        import_db
-        ;;
-    watch)
-        watch_directory
-        ;;
-    *)
-        echo "Usage: $0 {create|deploy|start|stop|destroy|export|import|watch}"
-        ;;
-esac
+echo "Django application setup complete. Access the app at http://$HOST_IP:8080"
