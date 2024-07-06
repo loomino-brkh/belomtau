@@ -2,7 +2,7 @@
 
 # Configuration
 APP_NAME="lomtau"
-PROJECT_DIR="$HOME/django_lomtau"
+PROJECT_DIR="$HOME/django_${APP_NAME}"
 VENV_DIR="$PROJECT_DIR/venv"
 HOST_IP="192.168.22.10"
 POD_NAME="${APP_NAME}_pod"
