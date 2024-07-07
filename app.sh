@@ -158,6 +158,7 @@ start() {
     
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+        -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:z" \
         "$NGINX_IMAGE"
     
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
