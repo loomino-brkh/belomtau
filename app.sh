@@ -50,7 +50,7 @@ podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
 # Activate virtualenv and install requirements
 podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install -r /app/requirements.txt"
 
-# Create Django project and repair the settings
+# Create Django project 
 podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
 
 sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" ${SETTINGS_FILE}
@@ -73,17 +73,17 @@ CACHES = {
 EOL
 
 # Gunicorn server script
-cat > "${PROJECT_DIR}/gunicorn_start.sh" <<EOL
+cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --workers 3 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-chmod +x "${PROJECT_DIR}/gunicorn_start.sh"
+chmod +x "$PROJECT_DIR/gunicorn_start.sh"
     
 # Configure Nginx
-cat > "${PROJECT_DIR}/nginx.conf" <<EOL
+cat > "$PROJECT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT;
     server_name $HOST_IP;
@@ -124,7 +124,7 @@ start() {
     
     sleep 10
     # Run database migrations
-    podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/"${APP_NAME}" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+    podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/$APP_NAME "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
     
     
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
