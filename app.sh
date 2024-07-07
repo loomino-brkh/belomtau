@@ -53,14 +53,14 @@ podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /
 # Create Django project 
 podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
 
-sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" ${SETTINGS_FILE}
-sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     'dev.var.my.id',\n\]" ${SETTINGS_FILE}
+sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
+sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     'dev.var.my.id',\n\]" "${SETTINGS_FILE}"
 
-sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" ${SETTINGS_FILE}
-sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" ${SETTINGS_FILE}
-sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," ${SETTINGS_FILE}
+sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" "${SETTINGS_FILE}"
+sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
+sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
 
-cat <<EOL >> ${SETTINGS_FILE}
+cat <<EOL >> "${SETTINGS_FILE}"
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -124,7 +124,7 @@ start() {
     
     sleep 10
     # Run database migrations
-    podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/$APP_NAME "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+    podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
     
     
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
@@ -144,8 +144,8 @@ start() {
 
 stop() {
 
-    podman pod stop $POD_NAME
-    podman pod rm $POD_NAME
+    podman pod stop "$POD_NAME"
+    podman pod rm "$POD_NAME"
 }
 
 $1;
