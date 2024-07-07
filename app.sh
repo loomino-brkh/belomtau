@@ -12,6 +12,7 @@ POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
 REDIS_IMAGE="docker.io/library/redis:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
+PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
 
 POD_NAME="${APP_NAME}_pod"
 
@@ -23,6 +24,7 @@ POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
+PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 
 #SETTINGS_FILE_MODULE="${APP_NAME}.settings"
 REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
@@ -35,6 +37,10 @@ init() {
 # Create project directory 
 mkdir -p "$PROJECT_DIR"
 mkdir -p "$PROJECT_DIR/db_data"
+mkdir -p "$PROJECT_DIR/redis_data"
+mkdir -p "$PROJECT_DIR/pgadmin"
+
+chmod 777 "$PROJECT_DIR/pgadmin"
 
 # Create requirements.txt 
 cat > "$REQUIREMENTS_FILE" <<EOL
@@ -104,10 +110,18 @@ EOL
 #    init;
 #fi
 
+stop() {
+
+    podman pod stop "$POD_NAME"
+    podman pod rm "$POD_NAME"
+}
+
 start() {
+    
+    stop;
 
     # Create the pod
-    podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --network bridge
+    podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
     
     # Start PostgreSQL container
     podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
@@ -117,35 +131,41 @@ start() {
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data" \
         "$POSTGRES_IMAGE"
     
+    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
+        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "PGADMIN_LISTEN_PORT=5050" \
+        "$PGADMIN_IMAGE" 
+    
     # Start Redis container
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
-        -v redis_data:/data \
+        -v "$PROJECT_DIR/redis_data:/data" \
         "$REDIS_IMAGE"
     
+    echo "Waiting database to ready"
     sleep 10
     # Run database migrations
-    podman run --rm --pod "$POD_NAME" -v "$PROJECT_DIR:/app" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
-    
+    podman run --rm --pod "$POD_NAME" \
+        -v "$PROJECT_DIR:/app" \
+        -w /app/"$APP_NAME" \
+        "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
     
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
+        -v "$PROJECT_DIR:/app" -w /app \
+        "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
     
     
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         "$NGINX_IMAGE"
     
-    podman run --rm -d --pod "$POD_NAME" --name cfltunnel docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
+        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
     
     echo "Django application setup complete. Access the app at http://$HOST_IP:8080 or https://dev.var.my.id/"
 
-}
-
-stop() {
-
-    podman pod stop "$POD_NAME"
-    podman pod rm "$POD_NAME"
 }
 
 $1;
