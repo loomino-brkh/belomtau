@@ -128,7 +128,7 @@ start() {
         -e POSTGRES_DB="$POSTGRES_DB" \
         -e POSTGRES_USER="$POSTGRES_USER" \
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-        -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data" \
+        -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
     
     podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
@@ -140,25 +140,25 @@ start() {
     
     # Start Redis container
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
-        -v "$PROJECT_DIR/redis_data:/data" \
+        -v "$PROJECT_DIR/redis_data:/data:z" \
         "$REDIS_IMAGE"
     
     echo "Waiting database to ready"
     sleep 10
     # Run database migrations
     podman run --rm --pod "$POD_NAME" \
-        -v "$PROJECT_DIR:/app" \
+        -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
     
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app" -w /app \
+        -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
     
     
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-        -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:z" \
+        -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
