@@ -166,7 +166,7 @@ start() {
         -v "$PROJECT_DIR":/app:z \
         -v "$PROJECT_DIR"/.root:/root:z \
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
-        -w /app/"$APP_NAME" \
+        -w "/app/${APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
     
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
