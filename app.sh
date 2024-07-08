@@ -39,6 +39,7 @@ mkdir -p "$PROJECT_DIR"
 mkdir -p "$PROJECT_DIR/db_data"
 mkdir -p "$PROJECT_DIR/redis_data"
 mkdir -p "$PROJECT_DIR/pgadmin"
+mkdir -p "$PROJECT_DIR/.root"
 
 chmod 777 "$PROJECT_DIR/pgadmin"
 
@@ -132,10 +133,10 @@ start() {
         "$POSTGRES_IMAGE"
     
     podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
+        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
         "$PGADMIN_IMAGE" 
     
     # Start Redis container
@@ -161,11 +162,18 @@ start() {
         -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
+        -v "$PROJECT_DIR":/app:z \
+        -v "$PROJECT_DIR"/.root:/root:z \
+        -v /usr/bin/cloudflared:/usr/bin/cloudflared \
+        -w /app/"$APP_NAME" \
+        "$PYTHON_IMAGE" sleep infinity
+    
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
     
-    echo "Django application setup complete. Access the app at http://$HOST_IP:8080 or https://dev.var.my.id/"
+    echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
 
 }
 
