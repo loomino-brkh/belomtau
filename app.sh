@@ -84,7 +84,7 @@ cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
-exec gunicorn --workers 3 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
 chmod +x "$PROJECT_DIR/gunicorn_start.sh"
