@@ -2,7 +2,7 @@
 
 # ---- Configuration -------
 APP_NAME="$2"
-PROJECT_DIR="$HOME/project_${APP_NAME}"
+PROJECT_DIR="$HOME/eskrim/project_${APP_NAME}"
 #VENV_DIR="${PROJECT_DIR}/venv"
 
 HOST_IP="192.168.100.77"
