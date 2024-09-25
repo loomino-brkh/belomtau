@@ -2,10 +2,10 @@
 
 # ---- Configuration -------
 APP_NAME="$2"
-PROJECT_DIR="$HOME/django_${APP_NAME}"
+PROJECT_DIR="$HOME/project_${APP_NAME}"
 #VENV_DIR="${PROJECT_DIR}/venv"
 
-HOST_IP="192.168.22.10"
+HOST_IP="192.168.100.77"
 PORT="8080"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
@@ -49,13 +49,14 @@ Django>=4.0
 psycopg2-binary
 gunicorn
 django-redis
+djangorestframework
 EOL
 
 # Create virtualenv 
 podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
 
 # Activate virtualenv and install requirements
-podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install -r /app/requirements.txt"
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
 
 # Create Django project 
 podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
@@ -107,12 +108,7 @@ EOL
 
 }
 
-#if [ ! -d "$PROJECT_DIR" ]; then
-#    init;
-#fi
-
 stop() {
-
     podman pod stop "$POD_NAME"
     podman pod rm "$POD_NAME"
 }
