@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 # ---- Configuration -------
 APP_NAME="$2"
 # Replace hyphens with underscores to create a valid Python module name
@@ -36,6 +39,8 @@ SETTINGS_FILE="${PROJECT_DIR}/${VALID_APP_NAME}/settings.py"
 
 init() {
 
+    echo "Initializing Django RESTful API project: ${APP_NAME}"
+    
     # Create project directory 
     mkdir -p "$PROJECT_DIR"
     mkdir -p "$PROJECT_DIR/db_data"
@@ -54,20 +59,30 @@ gunicorn
 django-redis
 EOL
 
+    echo "Created requirements.txt"
+
     # Create virtualenv 
     podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
+
+    echo "Created virtual environment"
 
     # Activate virtualenv and install requirements
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
 
+    echo "Installed requirements"
+
     # Create Django project 
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $VALID_APP_NAME"
 
-    # Check if settings.py exists
+    echo "Created Django project: $VALID_APP_NAME"
+
+    # Verify that settings.py exists
     if [ ! -f "$SETTINGS_FILE" ]; then
         echo "Error: settings.py not found at $SETTINGS_FILE"
         exit 1
     fi
+
+    echo "Django settings.py found"
 
     # Update settings.py for allowed hosts and database configurations
     sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
@@ -93,6 +108,8 @@ CACHES = {
 }
 EOL
 
+    echo "Updated settings.py with allowed hosts, database config, REST framework, and Caches"
+
     # Add REST framework default settings
     cat <<EOL >> "${SETTINGS_FILE}"
 REST_FRAMEWORK = {
@@ -106,8 +123,12 @@ REST_FRAMEWORK = {
 }
 EOL
 
+    echo "Added REST framework default settings"
+
     # Create initial API app within the Django project directory
     podman run --rm -v "$PROJECT_DIR:/app" -w /app/"$VALID_APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py startapp api"
+
+    echo "Created 'api' app"
 
     # Define API App Directory
     API_APP_DIR="${PROJECT_DIR}/${VALID_APP_NAME}/api"
@@ -118,8 +139,12 @@ EOL
         exit 1
     fi
 
+    echo "'api' app directory exists"
+
     # Add 'api' to INSTALLED_APPS
     sed -i "/INSTALLED_APPS = \[/a\    'api'," "${SETTINGS_FILE}"
+
+    echo "Added 'api' to INSTALLED_APPS"
 
     # Create serializers.py in api app
     podman run --rm -v "$PROJECT_DIR:/app" -w /app/"$VALID_APP_NAME"/api "$PYTHON_IMAGE" bash -c "echo \"from rest_framework import serializers
@@ -132,6 +157,8 @@ class YourModelSerializer(serializers.ModelSerializer):
         fields = '__all__'
 \" > serializers.py"
 
+    echo "Created serializers.py"
+
     # Create views.py with basic API view
     podman run --rm -v "$PROJECT_DIR:/app" -w /app/"$VALID_APP_NAME"/api "$PYTHON_IMAGE" bash -c "echo \"from rest_framework import viewsets
 from .models import YourModel
@@ -141,6 +168,8 @@ class YourModelViewSet(viewsets.ModelViewSet):
     queryset = YourModel.objects.all()
     serializer_class = YourModelSerializer
 \" > views.py"
+
+    echo "Created views.py"
 
     # Create urls.py in api app
     podman run --rm -v "$PROJECT_DIR:/app" -w /app/"$VALID_APP_NAME"/api "$PYTHON_IMAGE" bash -c "echo \"from django.urls import path, include
@@ -155,11 +184,13 @@ urlpatterns = [
 ]
 \" > urls.py"
 
+    echo "Created urls.py"
+
     # Include api.urls in project's urls.py
-    sed -i "/from django.urls import path/a\\
-from django.urls import include" "${PROJECT_DIR}/${VALID_APP_NAME}/urls.py"
-    sed -i "/urlpatterns = \[/a\\
-    path('api/', include('api.urls'))," "${PROJECT_DIR}/${VALID_APP_NAME}/urls.py"
+    sed -i "/from django.urls import path/a\from django.urls import include" "${PROJECT_DIR}/${VALID_APP_NAME}/urls.py"
+    sed -i "/urlpatterns = \[/a\    path('api/', include('api.urls'))," "${PROJECT_DIR}/${VALID_APP_NAME}/urls.py"
+
+    echo "Included 'api.urls' in project urls.py"
 
     # Gunicorn server script
     cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
@@ -170,6 +201,8 @@ exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 ${VALID_APP_NAME}.wsgi:a
 EOL
 
     chmod +x "$PROJECT_DIR/gunicorn_start.sh"
+
+    echo "Created gunicorn_start.sh"
 
     # Configure Nginx
     cat > "$PROJECT_DIR/nginx.conf" <<EOL
@@ -195,19 +228,31 @@ server {
 }
 EOL
 
+    echo "Configured Nginx"
+
+    # Verify project structure
+    echo "Verifying project structure..."
+    ls -la "$PROJECT_DIR/$VALID_APP_NAME"
+
+    echo "Initialization complete."
 }
 
 stop() {
-    podman pod stop "$POD_NAME"
-    podman pod rm "$POD_NAME"
+    echo "Stopping pod: $POD_NAME"
+    podman pod stop "$POD_NAME" || echo "Pod not running."
+    podman pod rm "$POD_NAME" || echo "Pod not found."
 }
 
 start() {
     
+    echo "Starting Django RESTful API application..."
+
     stop
 
     # Create the pod
     podman pod create --name "$POD_NAME" --publish ${PORT}:8000 --publish 5050:5050 --network bridge
+
+    echo "Created pod: $POD_NAME"
 
     # Start PostgreSQL container
     podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
@@ -217,6 +262,8 @@ start() {
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
 
+    echo "Started PostgreSQL container"
+
     # Start pgAdmin container
     podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
@@ -225,12 +272,16 @@ start() {
         -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
         "$PGADMIN_IMAGE" 
 
+    echo "Started pgAdmin container"
+
     # Start Redis container
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
         -v "$PROJECT_DIR/redis_data:/data:z" \
         "$REDIS_IMAGE"
 
-    echo "Waiting for database to be ready..."
+    echo "Started Redis container"
+
+    echo "Waiting for PostgreSQL to be ready..."
     sleep 15
 
     # Run database migrations
@@ -239,22 +290,30 @@ start() {
         -w /app/"$VALID_APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
 
+    echo "Ran database migrations"
+
     # Collect static files
     podman run --rm --pod "$POD_NAME" \
         -v "$PROJECT_DIR:/app" \
         -w /app/"$VALID_APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py collectstatic --noinput"
 
+    echo "Collected static files"
+
     # Start Gunicorn container
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
+
+    echo "Started Gunicorn container"
 
     # Start Nginx container
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
+
+    echo "Started Nginx container"
 
     # Start interactive container (optional)
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
@@ -264,14 +323,17 @@ start() {
         -w "/app/${VALID_APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
 
+    echo "Started interactive container"
+
     # Start Cloudflare tunnel container (replace <TOKEN> with your actual token)
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
 
+    echo "Started Cloudflare tunnel container"
+
     echo "Django RESTful API application setup complete."
     echo "Access the API at http://${HOST_IP}:${PORT}/api/ or https://dev.var.my.id/api/"
-
 }
 
 # Main Execution
