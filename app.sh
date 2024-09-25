@@ -46,10 +46,10 @@ chmod 777 "$PROJECT_DIR/pgadmin"
 # Create requirements.txt 
 cat > "$REQUIREMENTS_FILE" <<EOL
 Django>=4.0
+djangorestframework
 psycopg2-binary
 gunicorn
 django-redis
-djangorestframework
 EOL
 
 # Create virtualenv 
@@ -68,6 +68,10 @@ sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.p
 sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
 sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
 
+# Add Django REST Framework to INSTALLED_APPS
+sed -i "/INSTALLED_APPS = \[/a\    'rest_framework'," "${SETTINGS_FILE}"
+
+# Add CACHES configuration
 cat <<EOL >> "${SETTINGS_FILE}"
 CACHES = {
     'default': {
@@ -79,6 +83,63 @@ CACHES = {
     }
 }
 EOL
+
+# Add REST framework default settings
+cat <<EOL >> "${SETTINGS_FILE}"
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+}
+EOL
+
+# Create initial API app
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py startapp api"
+
+# Add 'api' to INSTALLED_APPS
+sed -i "/INSTALLED_APPS = \[/a\    'api'," "${SETTINGS_FILE}"
+
+# Create serializers.py in api app
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "echo \"from rest_framework import serializers
+
+from .models import YourModel
+
+class YourModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = YourModel
+        fields = '__all__'
+\" > api/serializers.py"
+
+# Create views.py with basic API view
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "echo \"from rest_framework import viewsets
+from .models import YourModel
+from .serializers import YourModelSerializer
+
+class YourModelViewSet(viewsets.ModelViewSet):
+    queryset = YourModel.objects.all()
+    serializer_class = YourModelSerializer
+\" > api/views.py"
+
+# Create urls.py in api app
+podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "echo \"from django.urls import path, include
+from rest_framework import routers
+from . import views
+
+router = routers.DefaultRouter()
+router.register(r'yourmodel', views.YourModelViewSet)
+
+urlpatterns = [
+    path('', include(router.urls)),
+]
+\" > api/urls.py"
+
+# Include api.urls in project's urls.py
+sed -i "/from django.urls import path/a\from django.urls import include" "${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/urls.py"
+sed -i "/urlpatterns = \[/a\    path('api/', include('api.urls'))," "${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/urls.py"
 
 # Gunicorn server script
 cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
@@ -103,6 +164,14 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
 }
 EOL
 
@@ -118,7 +187,7 @@ start() {
     stop;
 
     # Create the pod
-    podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
+    podman pod create --name "$POD_NAME" --publish ${PORT}:8000 --publish 5050:5050 --network bridge
     
     # Start PostgreSQL container
     podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
@@ -128,11 +197,12 @@ start() {
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
     
+    # Start pgAdmin container
     podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
-        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
+        -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
         "$PGADMIN_IMAGE" 
     
     # Start Redis container
@@ -140,24 +210,33 @@ start() {
         -v "$PROJECT_DIR/redis_data:/data:z" \
         "$REDIS_IMAGE"
     
-    echo "Waiting database to ready"
-    sleep 10
+    echo "Waiting for database to be ready..."
+    sleep 15
+
     # Run database migrations
     podman run --rm --pod "$POD_NAME" \
         -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
     
+    # Collect static files
+    podman run --rm --pod "$POD_NAME" \
+        -v "$PROJECT_DIR:/app:ro" \
+        -w /app/"$APP_NAME" \
+        "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py collectstatic --noinput"
+    
+    # Start Gunicorn container
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
     
-    
+    # Start Nginx container
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-        -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:ro" \
+        -v "$PROJECT_DIR/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
+    # Start interactive container (optional)
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
         -v "$PROJECT_DIR":/app:z \
         -v "$PROJECT_DIR"/.root:/root:z \
@@ -165,11 +244,13 @@ start() {
         -w "/app/${APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
     
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
+    # Start Cloudflare tunnel container (replace <TOKEN> with your actual token)
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
     
-    echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
+    echo "Django RESTful API application setup complete."
+    echo "Access the API at http://${HOST_IP}:${PORT}/api/ or https://dev.var.my.id/api/"
 
 }
 
