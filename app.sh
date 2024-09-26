@@ -40,7 +40,6 @@ mkdir -p "$PROJECT_DIR/db_data"
 mkdir -p "$PROJECT_DIR/redis_data"
 mkdir -p "$PROJECT_DIR/pgadmin"
 mkdir -p "$PROJECT_DIR/.root"
-
 chmod 777 "$PROJECT_DIR/pgadmin"
 
 # Create requirements.txt 
@@ -103,6 +102,18 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+
+    location /static/ {
+        alias /www/staticfiles/;
+    }
+    
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
 }
 EOL
 
@@ -114,8 +125,24 @@ stop() {
 }
 
 start() {
-    
-    stop;
+
+    if [ ! -d "$PROJECT_DIR" ]; then
+        read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
+        if [ "$confirm" = "y" ]; then
+            init
+        else
+            echo "Initialization aborted."
+            exit 1
+        fi
+    fi
+
+    if podman pod exists "$POD_NAME"; then
+        stop
+    fi
+
+    if [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ]; then
+        mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
+    fi
 
     # Create the pod
     podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
@@ -155,7 +182,7 @@ start() {
     
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-        -v "$PROJECT_DIR/undar/staticfiles:/www/staticfiles:ro" \
+        -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
