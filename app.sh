@@ -35,17 +35,19 @@ SETTINGS_FILE="${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/settings.py"
 init() {
 
 # Create project directory 
-mkdir -p "$PROJECT_DIR"
-mkdir -p "$PROJECT_DIR/db_data"
-mkdir -p "$PROJECT_DIR/redis_data"
-mkdir -p "$PROJECT_DIR/pgadmin"
-mkdir -p "$PROJECT_DIR/.root"
-chmod 777 "$PROJECT_DIR/pgadmin"
+[ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
+[ ! -d "$PROJECT_DIR/db_data" ] && mkdir -p "$PROJECT_DIR/db_data"
+[ ! -d "$PROJECT_DIR/redis_data" ] && mkdir -p "$PROJECT_DIR/redis_data"
+[ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
+[ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
 
 # Create requirements.txt 
 cat > "$REQUIREMENTS_FILE" <<EOL
 Django>=4.0
 djangorestframework
+djangorestframework-simplejwt
+django-ratelimit
+django-cors-headers
 psycopg2-binary
 gunicorn
 django-redis
