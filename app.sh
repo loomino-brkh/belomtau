@@ -3,7 +3,6 @@
 # ---- Configuration -------
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
-#VENV_DIR="${PROJECT_DIR}/venv"
 
 HOST_IP="192.168.100.77"
 PORT="8080"
@@ -26,23 +25,18 @@ GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 
-#SETTINGS_FILE_MODULE="${APP_NAME}.settings"
 REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
 SETTINGS_FILE="${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/settings.py"
 
-# ---- Configuration -------
-
 init() {
+    [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
+    [ ! -d "$PROJECT_DIR/db_data" ] && mkdir -p "$PROJECT_DIR/db_data"
+    [ ! -d "$PROJECT_DIR/redis_data" ] && mkdir -p "$PROJECT_DIR/redis_data"
+    [ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
+    [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
+    [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
 
-# Create project directory 
-[ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
-[ ! -d "$PROJECT_DIR/db_data" ] && mkdir -p "$PROJECT_DIR/db_data"
-[ ! -d "$PROJECT_DIR/redis_data" ] && mkdir -p "$PROJECT_DIR/redis_data"
-[ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
-[ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
-
-# Create requirements.txt 
-cat > "$REQUIREMENTS_FILE" <<EOL
+    cat > "$REQUIREMENTS_FILE" <<EOL
 Django>=4.0
 djangorestframework
 djangorestframework-simplejwt
@@ -53,23 +47,17 @@ gunicorn
 django-redis
 EOL
 
-# Create virtualenv 
-podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
+    podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
+    podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
+    podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
 
-# Activate virtualenv and install requirements
-podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
+    sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
+    sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     'dev.var.my.id',\n\]" "${SETTINGS_FILE}"
+    sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" "${SETTINGS_FILE}"
+    sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
+    sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
 
-# Create Django project 
-podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
-
-sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
-sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     'dev.var.my.id',\n\]" "${SETTINGS_FILE}"
-
-sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" "${SETTINGS_FILE}"
-sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
-sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
-
-cat <<EOL >> "${SETTINGS_FILE}"
+    cat <<EOL >> "${SETTINGS_FILE}"
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -81,27 +69,24 @@ CACHES = {
 }
 EOL
 
-# Gunicorn server script
-cat > "$PROJECT_DIR/gunicorn_prod.sh" <<EOL
+    cat > "$PROJECT_DIR/gunicorn_prod.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-# Gunicorn server script to dev
-cat > "$PROJECT_DIR/gunicorn_dev.sh" <<EOL
+    cat > "$PROJECT_DIR/gunicorn_dev.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --reload --log-level=debug --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-chmod +x "$PROJECT_DIR/gunicorn_prod.sh"
-chmod +x "$PROJECT_DIR/gunicorn_dev.sh"
+    chmod +x "$PROJECT_DIR/gunicorn_prod.sh"
+    chmod +x "$PROJECT_DIR/gunicorn_dev.sh"
 
-# Configure Nginx
-cat > "$PROJECT_DIR/nginx.conf" <<EOL
+    cat > "$PROJECT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT;
     server_name $HOST_IP;
@@ -127,7 +112,6 @@ server {
     }
 }
 EOL
-
 }
 
 stop() {
@@ -136,11 +120,8 @@ stop() {
 }
 
 esse() {
-
-    # Create the pod
     podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
     
-    # Start PostgreSQL container
     podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
         -e POSTGRES_DB="$POSTGRES_DB" \
         -e POSTGRES_USER="$POSTGRES_USER" \
@@ -148,14 +129,13 @@ esse() {
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
     
-    # Start Redis container
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
         -v "$PROJECT_DIR/redis_data:/data:z" \
         "$REDIS_IMAGE"
     
-    echo "Waiting database to ready"
+    echo "Waiting for the database to be ready"
     sleep 10
-    # Run database migrations
+    
     podman run --rm --pod "$POD_NAME" \
         -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
@@ -163,26 +143,23 @@ esse() {
 }
 
 esso() {
-
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token $(cat "$PROJECT_DIR/token")
 }
 
 prod() {
-
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_prod.sh"
 }
 
 dev() {
-
     podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
@@ -193,11 +170,9 @@ dev() {
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
         -w "/app/${APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
-
 }
 
 pg() {
-
     dev
 
     podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
@@ -205,12 +180,10 @@ pg() {
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
         -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
-        "$PGADMIN_IMAGE" 
+        "$PGADMIN_IMAGE"
 }
 
-
 start() {
-
     if [ "$1" != "prod" ] && [ "$1" != "dev" ] && [ "$1" != "pg" ]; then
         echo "wrong option"
         exit 1
@@ -219,7 +192,6 @@ start() {
     if podman pod exists "$POD_NAME"; then
         stop
     fi
-
 
     if [ ! -d "$PROJECT_DIR" ]; then
         read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
@@ -231,9 +203,7 @@ start() {
         fi
     fi
 
-    if [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ]; then
-        mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
-    fi
+    [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
     
     esse
     $1
@@ -242,10 +212,10 @@ start() {
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
 
     if [ "$1" != "prod" ]; then
-    echo ""
-    echo "Developmemt environment setup complete. Access the container at ${APP_NAME}_interact."
-    echo ""
-    [ "$1" = "pg" ] && echo "pgAdmin setup complete. Access pgAdmin at http://${HOST_IP}:5050"
+        echo ""
+        echo "Development environment setup complete. Access the container at ${APP_NAME}_interact."
+        echo ""
+        [ "$1" = "pg" ] && echo "pgAdmin setup complete. Access pgAdmin at http://${HOST_IP}:5050"
     fi
 }
 
