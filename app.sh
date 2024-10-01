@@ -82,15 +82,24 @@ CACHES = {
 EOL
 
 # Gunicorn server script
-cat > "$PROJECT_DIR/gunicorn_start.sh" <<EOL
+cat > "$PROJECT_DIR/gunicorn_prod.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-chmod +x "$PROJECT_DIR/gunicorn_start.sh"
-    
+# Gunicorn server script to dev
+cat > "$PROJECT_DIR/gunicorn_dev.sh" <<EOL
+#!/bin/bash
+source /app/venv/bin/activate
+cd /app/${APP_NAME}
+exec gunicorn --reload --log-level=debug --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+EOL
+
+chmod +x "$PROJECT_DIR/gunicorn_prod.sh"
+chmod +x "$PROJECT_DIR/gunicorn_dev.sh"
+
 # Configure Nginx
 cat > "$PROJECT_DIR/nginx.conf" <<EOL
 server {
@@ -126,11 +135,7 @@ stop() {
     podman pod rm "$POD_NAME"
 }
 
-prod() {
-
-    if podman pod exists "$POD_NAME"; then
-        stop
-    fi
+esse() {
 
     # Create the pod
     podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
@@ -155,12 +160,10 @@ prod() {
         -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
-    
-    podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app:ro" -w /app \
-        "$PYTHON_IMAGE" bash -c "./gunicorn_start.sh"
-    
-    
+}
+
+esso() {
+
     podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
@@ -168,11 +171,55 @@ prod() {
     
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-        --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
+        --token $(cat "$PROJECT_DIR/token")
+}
+
+prod() {
+
+    podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+        -v "$PROJECT_DIR:/app:ro" -w /app \
+        "$PYTHON_IMAGE" bash -c "./gunicorn_prod.sh"
+}
+
+dev() {
+
+    podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+        -v "$PROJECT_DIR:/app:ro" -w /app \
+        "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
+
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
+        -v "$PROJECT_DIR":/app:z \
+        -v "$PROJECT_DIR"/.root:/root:z \
+        -v /usr/bin/cloudflared:/usr/bin/cloudflared \
+        -w "/app/${APP_NAME}" \
+        "$PYTHON_IMAGE" sleep infinity
 
 }
 
+pg() {
+
+    dev
+
+    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "PGADMIN_LISTEN_PORT=5050" \
+        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
+        "$PGADMIN_IMAGE" 
+}
+
+
 start() {
+
+    if [ "$1" != "prod" ] && [ "$1" != "dev" ] && [ "$1" != "pg" ]; then
+        echo "wrong option"
+        exit 1
+    fi
+    
+    if podman pod exists "$POD_NAME"; then
+        stop
+    fi
+
 
     if [ ! -d "$PROJECT_DIR" ]; then
         read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
@@ -188,24 +235,24 @@ start() {
         mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
     fi
     
-    prod
-
-    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
-        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
-        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
-        -e "PGADMIN_LISTEN_PORT=5050" \
-        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
-        "$PGADMIN_IMAGE" 
-    
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
-        -v "$PROJECT_DIR":/app:z \
-        -v "$PROJECT_DIR"/.root:/root:z \
-        -v /usr/bin/cloudflared:/usr/bin/cloudflared \
-        -w "/app/${APP_NAME}" \
-        "$PYTHON_IMAGE" sleep infinity
+    esse
+    $1
+    esso
 
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
 
+    if [ "$1" != "prod" ]; then
+    echo ""
+    echo "Developmemt environment setup complete. Access the container at ${APP_NAME}_interact."
+    echo ""
+    [ "$1" = "pg" ] && echo "pgAdmin setup complete. Access pgAdmin at http://${HOST_IP}:5050"
+    fi
 }
 
-$1;
+if [ "$1" = "start" ] && [ -n "$3" ]; then
+    $1 $3
+elif [ "$1" = "stop" ]; then
+    $1
+else
+    echo "wrong option"
+fi
