@@ -126,24 +126,10 @@ stop() {
     podman pod rm "$POD_NAME"
 }
 
-start() {
-
-    if [ ! -d "$PROJECT_DIR" ]; then
-        read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
-        if [ "$confirm" = "y" ]; then
-            init
-        else
-            echo "Initialization aborted."
-            exit 1
-        fi
-    fi
+prod() {
 
     if podman pod exists "$POD_NAME"; then
         stop
-    fi
-
-    if [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ]; then
-        mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
     fi
 
     # Create the pod
@@ -156,13 +142,6 @@ start() {
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
-    
-    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
-        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
-        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
-        -e "PGADMIN_LISTEN_PORT=5050" \
-        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
-        "$PGADMIN_IMAGE" 
     
     # Start Redis container
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
@@ -187,17 +166,44 @@ start() {
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
     
+    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
+        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
+        --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
+
+}
+
+start() {
+
+    if [ ! -d "$PROJECT_DIR" ]; then
+        read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
+        if [ "$confirm" = "y" ]; then
+            init
+        else
+            echo "Initialization aborted."
+            exit 1
+        fi
+    fi
+
+    if [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ]; then
+        mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
+    fi
+    
+    prod
+
+    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "PGADMIN_LISTEN_PORT=5050" \
+        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
+        "$PGADMIN_IMAGE" 
+    
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
         -v "$PROJECT_DIR":/app:z \
         -v "$PROJECT_DIR"/.root:/root:z \
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
         -w "/app/${APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
-    
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}"_cfltunnel \
-        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-        --token eyJhIjoiNTdkZGI1MGYzMmI4ZTQ5ZTNmMWE0Mzg3MWVmMTQzZTciLCJ0IjoiODgzYWM1MzUtYjcxYi00MTg0LTkyNTItYTg5ZTkwNmQ0MWU1IiwicyI6IllqY3hZVE5qWldFdFptSmxZUzAwTnpGa0xXRm1PRFl0WVRBMk5EVXlNbVUzTWpVMiJ9
-    
+
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
 
 }
