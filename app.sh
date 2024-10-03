@@ -226,6 +226,7 @@ start() {
 cek() {
     if ! podman pod exists "$POD_NAME" || [[ $(podman pod inspect "$POD_NAME" --format '{{.State.Status}}') != "running" ]]; then
         echo "Pod is not running. Restarting..."
+        stop
         esse
         pg
         esso
