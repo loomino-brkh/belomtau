@@ -1,11 +1,11 @@
 #!/bin/bash
-
 # ---- Configuration -------
+HOST_IP="192.168.100.77"
+HOST_DOMAIN="dev.var.my.id"
+PORT="8080"
+
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
-
-HOST_IP="192.168.100.77"
-PORT="8080"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
@@ -52,7 +52,7 @@ EOL
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
 
     sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
-    sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     'dev.var.my.id',\n\]" "${SETTINGS_FILE}"
+    sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     '$HOST_DOMAIN',\n\]" "${SETTINGS_FILE}"
     sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" "${SETTINGS_FILE}"
     sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
     sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
@@ -121,21 +121,21 @@ stop() {
 
 esse() {
     podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
-    
+
     podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
         -e POSTGRES_DB="$POSTGRES_DB" \
         -e POSTGRES_USER="$POSTGRES_USER" \
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
-    
+
     podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
         -v "$PROJECT_DIR/redis_data:/data:z" \
         "$REDIS_IMAGE"
-    
+
     echo "Waiting for the database to be ready"
-    sleep 10
-    
+    sleep 5
+
     podman run --rm --pod "$POD_NAME" \
         -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
@@ -147,10 +147,14 @@ esso() {
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         "$NGINX_IMAGE"
-    
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
-        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-        --token $(cat "$PROJECT_DIR/token")
+
+    if [ -f "$PROJECT_DIR/token" ]; then
+        podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
+            docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
+            --token $(cat "$PROJECT_DIR/token")
+    else
+        echo "Cloudflare Tunnel token file is missing."
+    fi
 }
 
 prod() {
@@ -165,8 +169,8 @@ dev() {
         "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
 
     podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
-        -v "$PROJECT_DIR":/app:z \
-        -v "$PROJECT_DIR"/.root:/root:z \
+        -v "$PROJECT_DIR:/app:z" \
+        -v "$PROJECT_DIR/.root:/root:z" \
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
         -w "/app/${APP_NAME}" \
         "$PYTHON_IMAGE" sleep infinity
@@ -179,7 +183,7 @@ pg() {
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
-        -v "$PROJECT_DIR"/pgadmin:/var/lib/pgadmin:z \
+        -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
         "$PGADMIN_IMAGE"
 }
 
@@ -188,7 +192,7 @@ start() {
         echo "wrong option"
         exit 1
     fi
-    
+
     if podman pod exists "$POD_NAME"; then
         stop
     fi
@@ -204,12 +208,12 @@ start() {
     fi
 
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
-    
+
     esse
     $1
     esso
 
-    echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://dev.var.my.id/"
+    echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
 
     if [ "$1" != "prod" ]; then
         echo ""
@@ -219,9 +223,20 @@ start() {
     fi
 }
 
+cek() {
+    if ! podman pod exists "$POD_NAME" || [[ $(podman pod inspect "$POD_NAME" --format '{{.State.Status}}') != "running" ]]; then
+        echo "Pod is not running. Restarting..."
+        esse
+        dev
+        esso
+    else
+        echo "Pod is already running."
+    fi
+}
+
 if [ "$1" = "start" ] && [ -n "$3" ]; then
     $1 $3
-elif [ "$1" = "stop" ]; then
+elif [ "$1" = "stop" ] || [ "$1" = "cek" ]; then
     $1
 else
     echo "wrong option"
