@@ -36,7 +36,7 @@ init() {
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
     [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
 
-    cat > "$REQUIREMENTS_FILE" <<EOL
+    cat >"$REQUIREMENTS_FILE" <<EOL
 Django>=4.0
 djangorestframework
 djangorestframework-simplejwt
@@ -57,7 +57,7 @@ EOL
     sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
     sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
 
-    cat <<EOL >> "${SETTINGS_FILE}"
+    cat <<EOL >>"${SETTINGS_FILE}"
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -69,14 +69,14 @@ CACHES = {
 }
 EOL
 
-    cat > "$PROJECT_DIR/gunicorn_prod.sh" <<EOL
+    cat >"$PROJECT_DIR/gunicorn_prod.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-    cat > "$PROJECT_DIR/gunicorn_dev.sh" <<EOL
+    cat >"$PROJECT_DIR/gunicorn_dev.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
@@ -86,7 +86,7 @@ EOL
     chmod +x "$PROJECT_DIR/gunicorn_prod.sh"
     chmod +x "$PROJECT_DIR/gunicorn_dev.sh"
 
-    cat > "$PROJECT_DIR/nginx.conf" <<EOL
+    cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT;
     server_name $HOST_IP;
@@ -224,14 +224,17 @@ start() {
 }
 
 cek() {
-    if ! podman pod exists "$POD_NAME" || [[ $(podman pod inspect "$POD_NAME" --format '{{.State.Status}}') != "running" ]]; then
-        echo "Pod is not running. Restarting..."
-        stop
-        esse
-        pg
-        esso
+    if ! podman pod exists "$POD_NAME"; then
+        echo "Pod does not exist. Restarting..."
+        start pg
     else
-        echo "Pod is already running."
+        POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
+        if [ "$POD_STATE" != "Running" ]; then
+            echo "Pod is $POD_STATE. Restarting..."
+            start pg
+        else
+            echo "Pod is already running."
+        fi
     fi
 }
 
