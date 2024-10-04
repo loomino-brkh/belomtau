@@ -24,6 +24,8 @@ REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
+CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
+INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
 
 REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
 SETTINGS_FILE="${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/settings.py"
@@ -149,7 +151,7 @@ esso() {
         "$NGINX_IMAGE"
 
     if [ -f "$PROJECT_DIR/token" ]; then
-        podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_cfltunnel" \
+        podman run --rm -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
             docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
             --token $(cat "$PROJECT_DIR/token")
     else
@@ -168,7 +170,7 @@ dev() {
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
 
-    podman run --rm -d --pod "$POD_NAME" --name "${APP_NAME}_interact" \
+    podman run --rm -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:z" \
         -v "$PROJECT_DIR/.root:/root:z" \
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
@@ -233,7 +235,16 @@ cek() {
             echo "Pod is $POD_STATE. Restarting..."
             start pg
         else
-            echo "Pod is already running."
+            # Check each container's status
+            for container in "$POSTGRES_CONTAINER_NAME" "$REDIS_CONTAINER_NAME" "$GUNICORN_CONTAINER_NAME" "$NGINX_CONTAINER_NAME" "$PGADMIN_CONTAINER_NAME" "$CFL_TUNNEL_CONTAINER_NAME" "$INTERACT_CONTAINER_NAME"; do
+                CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
+                if [ "$CONTAINER_STATE" != "Up" ]; then
+                    echo "Container $container is $CONTAINER_STATE. Restarting..."
+                    start pg
+                    return
+                fi
+            done
+            echo "All containers are running."
         fi
     fi
 }
