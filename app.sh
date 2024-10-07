@@ -21,7 +21,8 @@ POSTGRES_PASSWORD="supersecure"
 
 POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
-GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
+GUNICORN_DEV_CONTAINER_NAME="${APP_NAME}_gunicorn_dev"
+GUNICORN_PROD_CONTAINER_NAME="${APP_NAME}_gunicorn_prod"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
@@ -118,40 +119,35 @@ EOL
 
 stop() {
     podman pod stop "$POD_NAME"
-    podman pod rm "$POD_NAME"
+    #podman pod rm "$POD_NAME"
 }
 
-esse() {
-    podman pod create --name "$POD_NAME" --publish ${PORT}:${PORT} --publish 5050:5050 --network bridge
-
-    podman run --rm -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
+run_postgres() {
+    podman run -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
         -e POSTGRES_DB="$POSTGRES_DB" \
         -e POSTGRES_USER="$POSTGRES_USER" \
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
         -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
         "$POSTGRES_IMAGE"
-
-    podman run --rm -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
-        -v "$PROJECT_DIR/redis_data:/data:z" \
-        "$REDIS_IMAGE"
-
-    echo "Waiting for the database to be ready"
-    sleep 5
-
-    podman run --rm --pod "$POD_NAME" \
-        -v "$PROJECT_DIR:/app:ro" \
-        -w /app/"$APP_NAME" \
-        "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
 }
 
-esso() {
-    podman run --rm -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
+run_redis() {
+    podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
+        -v "$PROJECT_DIR/redis_data:/data:z" \
+        "$REDIS_IMAGE"
+}
+
+run_nginx() {
+    podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
+        -v "$PROJECT_DIR/cert:/cert:ro" \
         "$NGINX_IMAGE"
+}
 
+run_cfl_tunnel() {
     if [ -f "$PROJECT_DIR/token" ]; then
-        podman run --rm -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
+        podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
             docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
             --token $(cat "$PROJECT_DIR/token")
     else
@@ -159,18 +155,29 @@ esso() {
     fi
 }
 
-prod() {
-    podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+run_gunicorn_prod() {
+    podman run -d --pod "$POD_NAME" --name "$GUNICORN_PROD_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_prod.sh"
 }
 
-dev() {
-    podman run --rm -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+run_gunicorn_dev() {
+    podman run -d --pod "$POD_NAME" --name "$GUNICORN_DEV_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
+}
 
-    podman run --rm -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+run_pgadmin() {
+    podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "PGADMIN_LISTEN_PORT=5050" \
+        -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
+        "$PGADMIN_IMAGE"
+}
+
+run_interact() {
+    podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:z" \
         -v "$PROJECT_DIR/.root:/root:z" \
         -v /usr/bin/cloudflared:/usr/bin/cloudflared \
@@ -178,15 +185,38 @@ dev() {
         "$PYTHON_IMAGE" sleep infinity
 }
 
+esse() {
+    podman pod create --name "$POD_NAME" --publish ${HOST_IP}:${PORT}:${PORT} --publish ${HOST_IP}:5050:5050 --network bridge
+
+    run_postgres
+    run_redis
+
+    echo "Waiting for the database to be ready"
+    sleep 5
+
+    podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate \
+        -v "$PROJECT_DIR:/app:ro" \
+        -w /app/"$APP_NAME" \
+        "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+}
+
+esso() {
+    run_nginx
+    run_cfl_tunnel
+}
+
+prod() {
+    run_gunicorn_prod
+}
+
+dev() {
+    run_gunicorn_dev
+    run_interact
+}
+
 pg() {
     dev
-
-    podman run --rm -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
-        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
-        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
-        -e "PGADMIN_LISTEN_PORT=5050" \
-        -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
-        "$PGADMIN_IMAGE"
+    run_pgadmin
 }
 
 start() {
@@ -196,7 +226,7 @@ start() {
     fi
 
     if podman pod exists "$POD_NAME"; then
-        stop
+        podman pod start "$POD_NAME"
     fi
 
     if [ ! -d "$PROJECT_DIR" ]; then
@@ -236,11 +266,11 @@ cek() {
             start pg
         else
             # Check each container's status
-            for container in "$POSTGRES_CONTAINER_NAME" "$REDIS_CONTAINER_NAME" "$GUNICORN_CONTAINER_NAME" "$NGINX_CONTAINER_NAME" "$PGADMIN_CONTAINER_NAME" "$CFL_TUNNEL_CONTAINER_NAME" "$INTERACT_CONTAINER_NAME"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
                 CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
                 if [ "$CONTAINER_STATE" != "Up" ]; then
                     echo "Container $container is $CONTAINER_STATE. Restarting..."
-                    start pg
+                    podman start "$container"
                     return
                 fi
             done
@@ -249,10 +279,12 @@ cek() {
     fi
 }
 
-if [ "$1" = "start" ] && [ -n "$3" ]; then
-    $1 $3
-elif [ "$1" = "stop" ] || [ "$1" = "cek" ]; then
-    $1
-else
-    echo "wrong option"
-fi
+#if [ "$1" = "start" ] && [ -n "$3" ]; then
+#    $1 $3
+#elif [ "$1" = "stop" ] || [ "$1" = "cek" ]; then
+#    $1
+#else
+#    echo "wrong option"
+#fi
+
+$1
