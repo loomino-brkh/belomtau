@@ -201,7 +201,7 @@ start() {
     fi
 
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
-
+    pod_create
     esse
 
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
