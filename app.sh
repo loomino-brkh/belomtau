@@ -146,16 +146,11 @@ run_cfl_tunnel() {
     fi
 }
 
-run_gunicorn_prod() {
-    podman run -d --pod "$POD_NAME" --name "$GUNICORN_PROD_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app:ro" -w /app \
-        "$PYTHON_IMAGE" bash -c "./gunicorn_prod.sh"
-}
 
-run_gunicorn_dev() {
-    podman run -d --pod "$POD_NAME" --name "$GUNICORN_DEV_CONTAINER_NAME" \
+run_gunicorn() {
+    podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" -w /app \
-        "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
+        "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
 }
 
 pg() {
