@@ -227,7 +227,8 @@ cek() {
         fi
     else
         echo "Pod does not exist. Restarting..."
-        start
+        pod_create
+        esse
     fi
 }
 
