@@ -110,7 +110,7 @@ EOL
 
 stop() {
     podman pod stop "$POD_NAME"
-    #podman pod rm "$POD_NAME"
+    podman pod rm "$POD_NAME"
 }
 
 run_postgres() {
@@ -178,6 +178,7 @@ esse() {
 }
 
 esso() {
+    run_gunicorn
     run_nginx
     run_cfl_tunnel
 }
