@@ -211,7 +211,6 @@ prod() {
 
 dev() {
     run_gunicorn_dev
-    run_interact
 }
 
 pg() {
@@ -263,7 +262,7 @@ cek() {
         POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
         if [ "$POD_STATE" != "Running" ]; then
             echo "Pod is $POD_STATE. Restarting..."
-            start pg
+            start dev
         else
             # Check each container's status
             for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
