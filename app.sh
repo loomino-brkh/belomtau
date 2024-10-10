@@ -158,7 +158,7 @@ run_gunicorn_dev() {
         "$PYTHON_IMAGE" bash -c "./gunicorn_dev.sh"
 }
 
-run_pgadmin() {
+pg() {
     podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
@@ -187,22 +187,9 @@ esso() {
     run_cfl_tunnel
 }
 
-prod() {
-    run_gunicorn_prod
-}
-
-dev() {
-    run_gunicorn_dev
-}
-
-alias pg=run_pgadmin
 
 start() {
-    if [ "$1" != "prod" ] && [ "$1" != "dev" ] && [ "$1" != "pg" ]; then
-        echo "wrong option"
-        exit 1
-    fi
-
+    
     if podman pod exists "$POD_NAME"; then
         podman pod start "$POD_NAME"
     fi
@@ -220,24 +207,16 @@ start() {
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
 
     esse
-    $1
     esso
 
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
-
-    if [ "$1" != "prod" ]; then
-        echo ""
-        echo "Development environment setup complete. Access the container at ${APP_NAME}_interact."
-        echo ""
-        [ "$1" = "pg" ] && echo "pgAdmin setup complete. Access pgAdmin at http://${HOST_IP}:5050"
-    fi
 }
 
 cek() {
     case $(podman pod exists "$POD_NAME") in
         0)
             echo "Pod does not exist. Restarting..."
-            start dev
+            start
             ;;
         *)
             POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
@@ -256,7 +235,7 @@ cek() {
                     ;;
                 *)
                     echo "Pod is $POD_STATE. Restarting..."
-                    start dev
+                    start
                     ;;
             esac
             ;;
