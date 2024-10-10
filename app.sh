@@ -209,20 +209,17 @@ start() {
 
 cek() {
     if podman pod exists "$POD_NAME"; then
-        POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
-        if [ "$POD_STATE" = "Running" ]; then
-            # Check each container's status
+        if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
             for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
-                CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
-                if [ "$CONTAINER_STATE" != "Up" ]; then
-                    echo "Container $container is $CONTAINER_STATE. Restarting..."
+                if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
+                    echo "Container $container is not running. Restarting..."
                     podman start "$container"
                     return
                 fi
             done
             echo "All containers are running."
         else
-            echo "Pod is $POD_STATE. Restarting..."
+            echo "Pod is not running. Restarting..."
             esse
         fi
     else
