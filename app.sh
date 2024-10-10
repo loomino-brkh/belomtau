@@ -265,7 +265,8 @@ cek() {
             start dev
         else
             # Check each container's status
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            #for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
                 CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
                 if [ "$CONTAINER_STATE" != "Up" ]; then
                     echo "Container $container is $CONTAINER_STATE. Restarting..."
