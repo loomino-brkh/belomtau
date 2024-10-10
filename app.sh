@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---- Configuration -------
-HOST_IP="192.168.100.77"
+HOST_IP="192.168.212.77"
 HOST_DOMAIN="dev.var.my.id"
 PORT="8080"
 
@@ -110,7 +110,7 @@ EOL
 
 stop() {
     podman pod stop "$POD_NAME"
-    podman pod rm "$POD_NAME"
+    #podman pod rm "$POD_NAME"
 }
 
 run_postgres() {
