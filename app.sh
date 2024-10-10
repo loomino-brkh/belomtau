@@ -21,8 +21,7 @@ POSTGRES_PASSWORD="supersecure"
 
 POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
-GUNICORN_DEV_CONTAINER_NAME="${APP_NAME}_gunicorn_dev"
-GUNICORN_PROD_CONTAINER_NAME="${APP_NAME}_gunicorn_prod"
+GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
@@ -72,22 +71,14 @@ CACHES = {
 }
 EOL
 
-    cat >"$PROJECT_DIR/gunicorn_prod.sh" <<EOL
-#!/bin/bash
-source /app/venv/bin/activate
-cd /app/${APP_NAME}
-exec gunicorn --reload --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
-EOL
-
-    cat >"$PROJECT_DIR/gunicorn_dev.sh" <<EOL
+    cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
 exec gunicorn --reload --log-level=debug --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
-    chmod +x "$PROJECT_DIR/gunicorn_prod.sh"
-    chmod +x "$PROJECT_DIR/gunicorn_dev.sh"
+    chmod +x "$PROJECT_DIR/gunicorn.sh"
 
     cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
@@ -204,10 +195,7 @@ dev() {
     run_gunicorn_dev
 }
 
-pg() {
-    dev
-    run_pgadmin
-}
+alias pg=run_pgadmin
 
 start() {
     if [ "$1" != "prod" ] && [ "$1" != "dev" ] && [ "$1" != "pg" ]; then
@@ -256,8 +244,7 @@ cek() {
             start dev
         else
             # Check each container's status
-            #for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_PROD_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_DEV_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
                 CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
                 if [ "$CONTAINER_STATE" != "Up" ]; then
                     echo "Container $container is $CONTAINER_STATE. Restarting..."
@@ -270,12 +257,5 @@ cek() {
     fi
 }
 
-#if [ "$1" = "start" ] && [ -n "$3" ]; then
-#    $1 $3
-#elif [ "$1" = "stop" ] || [ "$1" = "cek" ]; then
-#    $1
-#else
-#    echo "wrong option"
-#fi
 
 $1
