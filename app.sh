@@ -175,9 +175,7 @@ esse() {
         -v "$PROJECT_DIR:/app:ro" \
         -w /app/"$APP_NAME" \
         "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
-}
 
-esso() {
     run_gunicorn
     run_nginx
     run_cfl_tunnel
@@ -203,7 +201,6 @@ start() {
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
 
     esse
-    esso
 
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
 }
