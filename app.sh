@@ -173,10 +173,10 @@ esse() {
     echo "Waiting for the database to be ready"
     sleep 5
 
-    podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate \
-        -v "$PROJECT_DIR:/app:ro" \
-        -w /app/"$APP_NAME" \
-        "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+    #podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate \
+    #    -v "$PROJECT_DIR:/app:ro" \
+    #    -w /app/"$APP_NAME" \
+    #    "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
 
     run_gunicorn
     run_nginx
