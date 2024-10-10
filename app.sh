@@ -234,27 +234,33 @@ start() {
 }
 
 cek() {
-    if ! podman pod exists "$POD_NAME"; then
-        echo "Pod does not exist. Restarting..."
-        start dev
-    else
-        POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
-        if [ "$POD_STATE" != "Running" ]; then
-            echo "Pod is $POD_STATE. Restarting..."
+    case $(podman pod exists "$POD_NAME") in
+        0)
+            echo "Pod does not exist. Restarting..."
             start dev
-        else
-            # Check each container's status
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
-                CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
-                if [ "$CONTAINER_STATE" != "Up" ]; then
-                    echo "Container $container is $CONTAINER_STATE. Restarting..."
-                    podman start "$container"
-                    return
-                fi
-            done
-            echo "All containers are running."
-        fi
-    fi
+            ;;
+        *)
+            POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
+            case "$POD_STATE" in
+                Running)
+                    # Check each container's status
+                    for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
+                        CONTAINER_STATE=$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')
+                        if [ "$CONTAINER_STATE" != "Up" ]; then
+                            echo "Container $container is $CONTAINER_STATE. Restarting..."
+                            podman start "$container"
+                            return
+                        fi
+                    done
+                    echo "All containers are running."
+                    ;;
+                *)
+                    echo "Pod is $POD_STATE. Restarting..."
+                    start dev
+                    ;;
+            esac
+            ;;
+    esac
 }
 
 
