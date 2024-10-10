@@ -162,12 +162,14 @@ pg() {
         "$PGADMIN_IMAGE"
 }
 
-esse() {
+pod_create() {
     podman pod create --name "$POD_NAME" --publish ${HOST_IP}:${PORT}:${PORT} --publish ${HOST_IP}:5050:5050 --network bridge
+}
+
+esse() {
 
     run_postgres
     run_redis
-
     echo "Waiting for the database to be ready"
     sleep 5
 
@@ -221,7 +223,7 @@ cek() {
             echo "All containers are running."
         else
             echo "Pod is $POD_STATE. Restarting..."
-            start
+            esse
         fi
     else
         echo "Pod does not exist. Restarting..."
