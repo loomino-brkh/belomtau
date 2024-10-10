@@ -168,21 +168,12 @@ run_gunicorn_dev() {
 }
 
 run_pgadmin() {
-    podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+    podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
         -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
         "$PGADMIN_IMAGE"
-}
-
-run_interact() {
-    podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app:z" \
-        -v "$PROJECT_DIR/.root:/root:z" \
-        -v /usr/bin/cloudflared:/usr/bin/cloudflared \
-        -w "/app/${APP_NAME}" \
-        "$PYTHON_IMAGE" sleep infinity
 }
 
 esse() {
