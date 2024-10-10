@@ -257,7 +257,7 @@ start() {
 cek() {
     if ! podman pod exists "$POD_NAME"; then
         echo "Pod does not exist. Restarting..."
-        start pg
+        start dev
     else
         POD_STATE=$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')
         if [ "$POD_STATE" != "Running" ]; then
