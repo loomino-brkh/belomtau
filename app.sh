@@ -107,6 +107,16 @@ server {
     }
 }
 EOL
+    cat >"$PROJECT_DIR/frontend.conf" <<EOL
+server {
+    listen $PORT;
+    server_name $HOST_IP;
+
+    location / {
+        ;
+    }
+}
+EOL
 }
 
 stop() {
