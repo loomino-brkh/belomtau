@@ -23,6 +23,7 @@ POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
+FRONTEND_CONTAINER_NAME="${APP_NAME}_frontend"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
@@ -149,7 +150,7 @@ run_cfl_tunnel() {
 
 run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app:ro" -w /app \
+        -v "$PROJECT_DIR:/app:z" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
 }
 
