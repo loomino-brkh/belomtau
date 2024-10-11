@@ -221,11 +221,8 @@ cek() {
             echo "All containers are running."
         else
             echo "Pod is not running. Restarting..."
-            esse
+            start
         fi
-    else
-        echo "Pod does not exist. Restarting..."
-        start
     fi
 }
 
