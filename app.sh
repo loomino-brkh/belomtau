@@ -113,7 +113,8 @@ server {
     server_name $HOST_IP;
 
     location / {
-        ;
+        root /www/frontend;
+        index index.html;
     }
 }
 EOL
