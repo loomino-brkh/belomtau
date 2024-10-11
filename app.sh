@@ -188,6 +188,8 @@ start() {
     
     if podman pod exists "$POD_NAME"; then
         podman pod start "$POD_NAME"
+    else
+        pod_create
     fi
 
     if [ ! -d "$PROJECT_DIR" ]; then
@@ -201,7 +203,6 @@ start() {
     fi
 
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
-    pod_create
     esse
 
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
@@ -224,8 +225,7 @@ cek() {
         fi
     else
         echo "Pod does not exist. Restarting..."
-        pod_create
-        esse
+        start
     fi
 }
 
