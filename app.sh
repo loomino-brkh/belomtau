@@ -160,13 +160,9 @@ run_frontend() {
 }
 
 run_cfl_tunnel() {
-    if [ -f "$PROJECT_DIR/token" ]; then
-        podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
-            docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-            --token $(cat "$PROJECT_DIR/token")
-    else
-        echo "Cloudflare Tunnel token file is missing."
-    fi
+    podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
+        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
+        --token $(cat "$PROJECT_DIR/token")
 }
 
 
