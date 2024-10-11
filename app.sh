@@ -148,6 +148,13 @@ run_nginx() {
         "$NGINX_IMAGE"
 }
 
+run_frontend() {
+    podman run -d --pod "$POD_NAME" --name "$FRONTEND_CONTAINER_NAME" \
+        -v "$PROJECT_DIR/frontend.conf:/etc/nginx/conf.d/default.conf:ro" \
+        -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
+        "$NGINX_IMAGE"
+}
+
 run_cfl_tunnel() {
     if [ -f "$PROJECT_DIR/token" ]; then
         podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
@@ -163,6 +170,13 @@ run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:z" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
+}
+
+run_interact() {
+    podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+        -v "$PROJECT_DIR/.root:/root:z" -w /root \
+        -v "$PROJECT_DIR/:/app:z" -w /app \
+        "$PYTHON_IMAGE" bash -c "sleep infinity"
 }
 
 pg() {
@@ -192,7 +206,9 @@ esse() {
 
     run_gunicorn
     run_nginx
+    run_frontend
     run_cfl_tunnel
+    run_interact
 }
 
 
@@ -223,7 +239,7 @@ start() {
 cek() {
     if podman pod exists "$POD_NAME"; then
         if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
                 if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
                     echo "Container $container is not running. Restarting..."
                     podman start "$container"
