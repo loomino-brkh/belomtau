@@ -2,7 +2,8 @@
 # ---- Configuration -------
 HOST_IP="192.168.212.77"
 HOST_DOMAIN="dev.var.my.id"
-PORT="8080"
+PORT1="8080"
+PORT2="9000"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
@@ -40,7 +41,7 @@ init() {
     [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
 
     cat >"$REQUIREMENTS_FILE" <<EOL
-Django>=4.0
+Django
 djangorestframework
 djangorestframework-simplejwt
 django-ratelimit
@@ -53,6 +54,7 @@ EOL
     podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
+    [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
 
     sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
     sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     '$HOST_DOMAIN',\n\]" "${SETTINGS_FILE}"
@@ -72,6 +74,8 @@ CACHES = {
 }
 EOL
 
+    podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate -v "$PROJECT_DIR:/app:ro" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+
     cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
@@ -83,7 +87,7 @@ EOL
 
     cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
-    listen $PORT;
+    listen $PORT1;
     server_name $HOST_IP;
 
     location / {
@@ -109,7 +113,7 @@ server {
 EOL
     cat >"$PROJECT_DIR/frontend.conf" <<EOL
 server {
-    listen $PORT;
+    listen $PORT2;
     server_name $HOST_IP;
 
     location / {
@@ -122,7 +126,7 @@ EOL
 
 stop() {
     podman pod stop "$POD_NAME"
-    #podman pod rm "$POD_NAME"
+    podman pod rm "$POD_NAME"
 }
 
 run_postgres() {
@@ -168,7 +172,7 @@ run_cfl_tunnel() {
 
 run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
-        -v "$PROJECT_DIR:/app:z" -w /app \
+        -v "$PROJECT_DIR:/app:ro" -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
 }
 
@@ -193,17 +197,8 @@ pod_create() {
 }
 
 esse() {
-
     run_postgres
     run_redis
-    echo "Waiting for the database to be ready"
-    sleep 5
-
-    #podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate \
-    #    -v "$PROJECT_DIR:/app:ro" \
-    #    -w /app/"$APP_NAME" \
-    #    "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
-
     run_gunicorn
     run_nginx
     run_frontend
@@ -213,26 +208,8 @@ esse() {
 
 
 start() {
-    
-    if podman pod exists "$POD_NAME"; then
-        podman pod start "$POD_NAME"
-    else
-        pod_create
-    fi
-
-    if [ ! -d "$PROJECT_DIR" ]; then
-        read -p "The project directory does not exist. Do you want to initialize it? (y/n): " confirm
-        if [ "$confirm" = "y" ]; then
-            init
-        else
-            echo "Initialization aborted."
-            exit 1
-        fi
-    fi
-
-    [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
+    pod_create
     esse
-
     echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
 }
 
@@ -248,9 +225,11 @@ cek() {
             done
             echo "All containers are running."
         else
-            echo "Pod is not running. Restarting..."
-            start
+            podman pod start "$POD_NAME"
         fi
+    else
+        echo "Pod is not running. Starting..."
+        start
     fi
 }
 
