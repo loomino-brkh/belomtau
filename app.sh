@@ -80,7 +80,7 @@ EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
-exec gunicorn --reload --log-level=debug --workers 10 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+exec gunicorn --reload --log-level=debug --workers 5 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
     chmod +x "$PROJECT_DIR/gunicorn.sh"
@@ -141,14 +141,13 @@ run_postgres() {
 run_redis() {
     podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
         -v "$PROJECT_DIR/redis_data:/data:z" \
-        "$REDIS_IMAGE"
+        "$REDIS_IMAGE" --loglevel verbose
 }
 
 run_nginx() {
     podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
-        -v "$PROJECT_DIR/cert:/cert:ro" \
         "$NGINX_IMAGE"
 }
 
@@ -189,7 +188,7 @@ pg() {
 }
 
 pod_create() {
-    podman pod create --name "$POD_NAME" --publish ${HOST_IP}:${PORT}:${PORT} --publish ${HOST_IP}:5050:5050 --network bridge
+    podman pod create --name "$POD_NAME" --publish ${HOST_IP}:${PORT1}:${PORT1} --publish ${HOST_IP}:${PORT2}:${PORT2} --publish ${HOST_IP}:5050:5050 --network bridge
 }
 
 esse() {
@@ -206,7 +205,7 @@ esse() {
 start() {
     pod_create
     esse
-    echo "Django application setup complete. Access the app at http://${HOST_IP}:${PORT} or https://${HOST_DOMAIN}/"
+    echo "Django application setup complete. Access the api app at http://${HOST_IP}:${PORT1} or frontend at https://${HOST_IP}:${PORT2} or publicly at https://${HOST_DOMAIN}/"
 }
 
 cek() {
