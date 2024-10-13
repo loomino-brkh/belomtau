@@ -87,7 +87,7 @@ EOL
     cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT1;
-    server_name $HOST_IP;
+    server_name 127.0.0.1;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -113,7 +113,7 @@ EOL
     cat >"$PROJECT_DIR/frontend.conf" <<EOL
 server {
     listen $PORT2;
-    server_name $HOST_IP;
+    server_name 127.0.0.1;
 
     location / {
         root /www/frontend;
