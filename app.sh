@@ -205,7 +205,6 @@ esse() {
 start() {
     pod_create
     esse
-    echo "Django application setup complete. Access the api app at http://${HOST_IP}:${PORT1} or frontend at https://${HOST_IP}:${PORT2} or publicly at https://${HOST_DOMAIN}/"
 }
 
 cek() {
