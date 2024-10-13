@@ -188,7 +188,7 @@ pg() {
 }
 
 pod_create() {
-    podman pod create --name "$POD_NAME" --publish ${HOST_IP}:${PORT1}:${PORT1} --publish ${HOST_IP}:${PORT2}:${PORT2} --publish ${HOST_IP}:5050:5050 --network bridge
+    podman pod create --name "$POD_NAME" --network bridge
 }
 
 esse() {
