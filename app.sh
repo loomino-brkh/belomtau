@@ -1,6 +1,5 @@
 #!/bin/bash
 # ---- Configuration -------
-HOST_IP="192.168.212.77"
 HOST_DOMAIN="dev.var.my.id"
 PORT1="8080"
 PORT2="9000"
