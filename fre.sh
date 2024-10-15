@@ -1,7 +1,6 @@
 #!/bin/bash
 # ---- Configuration -------
 HOST_DOMAIN="dev.var.my.id"
-PORT="9000"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/fre_${APP_NAME}"
@@ -57,7 +56,7 @@ EOL
 
     if [ ! -f "$PROJECT_DIR/frontend.conf" ] || ! cmp -s <(cat <<EOL
 server {
-    listen $PORT;
+    listen 9000;
     server_name 127.0.0.1;
 
     location / {
@@ -71,8 +70,12 @@ server {
     location /js/ {
         alias /www/staticfiles/js/;
     }
+}
+server {
+    listen 9080;
+    server_name 127.0.0.1;
 
-    location /fre/ {
+    location / {
         alias /www/frontend/;
     }
 }
@@ -80,7 +83,7 @@ EOL
 ) "$PROJECT_DIR/frontend.conf"; then
     cat >"$PROJECT_DIR/frontend.conf" <<EOL
 server {
-    listen $PORT;
+    listen 9000;
     server_name 127.0.0.1;
 
     location / {
@@ -94,8 +97,13 @@ server {
     location /js/ {
         alias /www/staticfiles/js/;
     }
+}
 
-    location /fre/ {
+server {
+    listen 9080;
+    server_name 127.0.0.1;
+
+    location / {
         alias /www/frontend/;
     }
 }
