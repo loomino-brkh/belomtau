@@ -1,8 +1,7 @@
 #!/bin/bash
 # ---- Configuration -------
 HOST_DOMAIN="dev.var.my.id"
-PORT1="8080"
-PORT2="9000"
+PORT="9000"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/fre_${APP_NAME}"
@@ -33,6 +32,7 @@ EOL
     podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
+
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles"
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles/css" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles/css"
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles/js" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles/js"
@@ -54,17 +54,46 @@ EOL
 
     chmod +x "$PROJECT_DIR/gunicorn.sh"
 
-    cat >"$PROJECT_DIR/frontend.conf" <<EOL
+    if [ ! -f "$PROJECT_DIR/frontend.conf" ] || ! cmp -s <(cat <<EOL
 server {
-    listen $PORT2;
+    listen $PORT;
     server_name 127.0.0.1;
 
     location / {
         root /www/frontend;
         index index.html;
     }
+
+    location /css/ {
+        alias /www/staticfiles/css/;
+    }
+
+    location /js/ {
+        alias /www/staticfiles/js/;
+    }
 }
 EOL
+) "$PROJECT_DIR/frontend.conf"; then
+    cat >"$PROJECT_DIR/frontend.conf" <<EOL
+server {
+    listen $PORT;
+    server_name 127.0.0.1;
+
+    location / {
+        root /www/frontend;
+        index index.html;
+    }
+
+    location /css/ {
+        alias /www/staticfiles/css/;
+    }
+
+    location /js/ {
+        alias /www/staticfiles/js/;
+    }
+}
+EOL
+    fi
 }
 
 stop() {
@@ -78,6 +107,8 @@ run_frontend() {
         -v "$PROJECT_DIR/frontend.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
+        -v "$PROJECT_DIR/${APP_NAME}/staticfiles/css:/www/staticfiles/css:ro" \
+        -v "$PROJECT_DIR/${APP_NAME}/staticfiles/js:/www/staticfiles/js:ro" \
         "$NGINX_IMAGE"
 }
 
