@@ -23,6 +23,7 @@ init() {
     [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
     [ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
+    [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
 
     cat >"$REQUIREMENTS_FILE" <<EOL
 Django
@@ -107,8 +108,6 @@ run_frontend() {
         -v "$PROJECT_DIR/frontend.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
-        -v "$PROJECT_DIR/${APP_NAME}/staticfiles/css:/www/staticfiles/css:ro" \
-        -v "$PROJECT_DIR/${APP_NAME}/staticfiles/js:/www/staticfiles/js:ro" \
         "$NGINX_IMAGE"
 }
 
