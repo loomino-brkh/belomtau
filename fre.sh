@@ -151,7 +151,7 @@ start() {
 cek() {
     if podman pod exists "$POD_NAME"; then
         if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-            for container in "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            for container in "${GUNICORN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
                 if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
                     echo "Container $container is not running. Restarting..."
                     podman start "$container"
