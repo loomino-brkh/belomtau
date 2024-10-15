@@ -61,8 +61,7 @@ server {
     server_name 127.0.0.1;
 
     location / {
-        root /www/frontend;
-        index index.html;
+        proxy_pass http://127.0.0.1:8900;
     }
 
     location /css/ {
@@ -71,6 +70,10 @@ server {
 
     location /js/ {
         alias /www/staticfiles/js/;
+    }
+
+    location /fre/ {
+        alias /www/frontend/;
     }
 }
 EOL
@@ -81,8 +84,7 @@ server {
     server_name 127.0.0.1;
 
     location / {
-        root /www/frontend;
-        index index.html;
+        proxy_pass http://127.0.0.1:8900;
     }
 
     location /css/ {
@@ -91,6 +93,10 @@ server {
 
     location /js/ {
         alias /www/staticfiles/js/;
+    }
+
+    location /fre/ {
+        alias /www/frontend/;
     }
 }
 EOL
@@ -116,7 +122,6 @@ run_cfl_tunnel() {
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
         --token $(cat "$PROJECT_DIR/token")
 }
-
 
 run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \

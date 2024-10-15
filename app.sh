@@ -23,7 +23,6 @@ POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
-FRONTEND_CONTAINER_NAME="${APP_NAME}_frontend"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
@@ -110,17 +109,6 @@ server {
     }
 }
 EOL
-    cat >"$PROJECT_DIR/frontend.conf" <<EOL
-server {
-    listen $PORT2;
-    server_name 127.0.0.1;
-
-    location / {
-        root /www/frontend;
-        index index.html;
-    }
-}
-EOL
 }
 
 stop() {
@@ -147,13 +135,6 @@ run_nginx() {
     podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
-        "$NGINX_IMAGE"
-}
-
-run_frontend() {
-    podman run -d --pod "$POD_NAME" --name "$FRONTEND_CONTAINER_NAME" \
-        -v "$PROJECT_DIR/frontend.conf:/etc/nginx/conf.d/default.conf:ro" \
-        -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
         "$NGINX_IMAGE"
 }
 
@@ -195,7 +176,6 @@ esse() {
     run_redis
     run_gunicorn
     run_nginx
-    run_frontend
     run_cfl_tunnel
     run_interact
 }
@@ -209,7 +189,7 @@ start() {
 cek() {
     if podman pod exists "$POD_NAME"; then
         if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
                 if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
                     echo "Container $container is not running. Restarting..."
                     podman start "$container"
