@@ -37,9 +37,7 @@ EOL
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles/css" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles/css"
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles/js" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles/js"
 
-    if [ ! -f "$PROJECT_DIR/gunicorn.sh" ] || ! grep -q "exec gunicorn --reload --log-level=debug --workers 5 --bind 0.0.0.0:8900 $APP_NAME.wsgi:application" "$PROJECT_DIR/gunicorn.sh"; then
-        cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
-    fi
+    cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
