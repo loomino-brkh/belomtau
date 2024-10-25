@@ -72,7 +72,7 @@ CACHES = {
 }
 EOL
 
-    podman run --rm --pod "$POD_NAME" --name "$APP_NAME"_migrate -v "$PROJECT_DIR:/app:ro" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
+    #podman run --rm -v "$PROJECT_DIR:/app:ro" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
 
     cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
 #!/bin/bash

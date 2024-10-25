@@ -67,6 +67,10 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    location /static/ {
+        alias /www/staticfiles/;
+    }
+
     location /css/ {
         alias /www/staticfiles/css/;
     }
@@ -98,6 +102,10 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    location /static/ {
+        alias /www/staticfiles/;
+    }
+
     location /css/ {
         alias /www/staticfiles/css/;
     }
@@ -105,7 +113,7 @@ server {
     location /js/ {
         alias /www/staticfiles/js/;
     }
-}
+
 
 server {
     listen 9080;
