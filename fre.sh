@@ -11,12 +11,17 @@ NGINX_IMAGE="docker.io/library/nginx:latest"
 POD_NAME="${APP_NAME}_fre_pod"
 
 GUNICORN_CONTAINER_NAME="${APP_NAME}_fre_gunicorn"
-FRONTEND_CONTAINER_NAME="${APP_NAME}_fre_frontend"
+FRONTEND_CONTAINER_NAME="${APP_NAME}_fre_nginx"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_fre_cfltunnel"
 INTERACT_CONTAINER_NAME="${APP_NAME}_fre_interact"
 
 REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
 SETTINGS_FILE="${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/settings.py"
+
+rev() {
+    podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
+    podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
+}
 
 init() {
     [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
@@ -29,8 +34,7 @@ Django
 gunicorn
 EOL
 
-    podman run --rm -v "$PROJECT_DIR:/app" "$PYTHON_IMAGE" python -m venv /app/venv
-    podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
+    rev
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
 
     [ ! -d "$PROJECT_DIR/${APP_NAME}/staticfiles" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/staticfiles"
@@ -165,10 +169,10 @@ pod_create() {
 }
 
 esse() {
-    run_gunicorn
+    #run_gunicorn
     run_frontend
     run_cfl_tunnel
-    run_interact
+    #run_interact
 }
 
 
@@ -180,7 +184,7 @@ start() {
 cek() {
     if podman pod exists "$POD_NAME"; then
         if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-            for container in "${GUNICORN_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            for container in "${CFL_TUNNEL_CONTAINER_NAME}" "${FRONTEND_CONTAINER_NAME}"; do
                 if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
                     echo "Container $container is not running. Restarting..."
                     podman start "$container"
