@@ -2,7 +2,7 @@
 # ---- Configuration -------
 HOST_DOMAIN="dev.var.my.id"
 PORT1="8080"
-PORT2="9000"
+PORT2="9080"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
@@ -42,6 +42,7 @@ init() {
     [ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
     [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
+    [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
 
     cat >"$REQUIREMENTS_FILE" <<EOL
 Django
@@ -75,8 +76,6 @@ CACHES = {
     }
 }
 EOL
-
-    #podman run --rm -v "$PROJECT_DIR:/app:ro" -w /app/"$APP_NAME" "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && python manage.py migrate"
 
     cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
 #!/bin/bash
@@ -112,6 +111,15 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
+
+server {
+    listen $PORT2;
+    server_name 127.0.0.1;
+
+    location / {
+        alias /www/frontend/;
+    }
+}
 EOL
 }
 
@@ -139,6 +147,7 @@ run_nginx() {
     podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
+        -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
         "$NGINX_IMAGE"
 }
 
