@@ -43,6 +43,9 @@ init() {
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
     [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
     [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
+    [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
+    [ ! -d "$PROJECT_DIR/mediafiles" ] && mkdir -p "$PROJECT_DIR/mediafiles"
+
 
     cat >"$REQUIREMENTS_FILE" <<EOL
 Django
@@ -53,11 +56,13 @@ django-cors-headers
 psycopg2-binary
 gunicorn
 django-redis
+Pillow
 EOL
 
     rev
     podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
     [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
+    [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
 
     sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
     sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     '$HOST_DOMAIN',\n\]" "${SETTINGS_FILE}"
@@ -81,7 +86,7 @@ EOL
 #!/bin/bash
 source /app/venv/bin/activate
 cd /app/${APP_NAME}
-exec gunicorn --reload --log-level=debug --workers 5 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+exec gunicorn --reload --log-level=debug --workers 2 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
 EOL
 
     chmod +x "$PROJECT_DIR/gunicorn.sh"
