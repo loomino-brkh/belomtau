@@ -153,6 +153,7 @@ run_nginx() {
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
+        -v "$PROJECT_DIR/mediafiles:/www/mediafiles:ro" \
         "$NGINX_IMAGE"
 }
 
@@ -165,8 +166,9 @@ run_cfl_tunnel() {
 
 run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+        -v "$PROJECT_DIR:/app:ro" \
         -v "$PROJECT_DIR/mediafiles:/app/mediafiles:z" \
-        -v "$PROJECT_DIR:/app:ro" -w /app \
+        -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
 }
 
