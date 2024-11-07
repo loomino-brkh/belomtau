@@ -44,7 +44,7 @@ init() {
     [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
     [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
     [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
-    [ ! -d "$PROJECT_DIR/mediafiles" ] && mkdir -p "$PROJECT_DIR/mediafiles"
+    [ ! -d "$PROJECT_DIR/media" ] && mkdir -p "$PROJECT_DIR/media"
 
 
     cat >"$REQUIREMENTS_FILE" <<EOL
@@ -106,6 +106,10 @@ server {
 
     location /static/ {
         alias /www/staticfiles/;
+    }
+
+    location /media/ {
+        alias /www/media/;
     }
     
     location /api/ {
