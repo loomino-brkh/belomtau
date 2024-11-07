@@ -153,7 +153,7 @@ run_nginx() {
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
         -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
         -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
-        -v "$PROJECT_DIR/mediafiles:/www/mediafiles:ro" \
+        -v "$PROJECT_DIR/media:/www/mediafiles:ro" \
         "$NGINX_IMAGE"
 }
 
