@@ -167,7 +167,7 @@ run_cfl_tunnel() {
 run_gunicorn() {
     podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:ro" \
-        -v "$PROJECT_DIR/mediafiles:/app/mediafiles:z" \
+        -v "$PROJECT_DIR/media:/app/media:z" \
         -w /app \
         "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
 }
