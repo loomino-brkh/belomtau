@@ -3,7 +3,6 @@
 HOST_DOMAIN="dev.var.my.id"
 PORT1="8080"
 PORT2="9080"
-PORT3="5080"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
@@ -137,15 +136,6 @@ server {
 
     location / {
         alias /www/frontend/;
-    }
-}
-
-server {
-    listen $PORT3;
-    server_name 127.0.0.1;
-
-    location / {
-        alias /www/educto/;
     }
 }
 EOL
