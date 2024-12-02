@@ -1,11 +1,10 @@
 #!/bin/bash
 # ---- Configuration -------
-HOST_DOMAIN="edu.brkh.work"
+HOST_DOMAIN="educto.brkh.work"
 PORT="8080"
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/eskrim/vue_${APP_NAME}"
-NODE_MODULES_DIR="$PROJECT_DIR/node_modules_data"
 
 NODE_IMAGE="docker.io/library/node:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
@@ -17,7 +16,6 @@ CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 
 init() {
     [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
-    [ ! -d "$NODE_MODULES_DIR" ] && mkdir -p "$NODE_MODULES_DIR"
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
     
     # Create package.json
