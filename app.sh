@@ -45,7 +45,6 @@ init() {
     [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
     [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
     [ ! -d "$PROJECT_DIR/media" ] && mkdir -p "$PROJECT_DIR/media"
-    [ ! -d "$PROJECT_DIR/educto" ] && mkdir -p "$PROJECT_DIR/educto"
 
 
     cat >"$REQUIREMENTS_FILE" <<EOL
@@ -164,10 +163,9 @@ run_redis() {
 run_nginx() {
     podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-        -v "$PROJECT_DIR/${APP_NAME}/staticfiles:/www/staticfiles:ro" \
-        -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
+        -v "$PROJECT_DIR/$APP_NAME/staticfiles:/www/staticfiles:ro" \
         -v "$PROJECT_DIR/media:/www/media:ro" \
-        -v "$PROJECT_DIR/educto:/www/educto:ro" \
+        -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
         "$NGINX_IMAGE"
 }
 
