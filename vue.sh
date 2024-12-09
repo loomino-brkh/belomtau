@@ -89,7 +89,6 @@ stop() {
 run_node() {
     podman run -d --pod "$POD_NAME" --name "$NODE_CONTAINER_NAME" \
         -v "$PROJECT_DIR:/app:z" \
-        -v "$NODE_MODULES_DIR:/app/node_modules:z" \
         -w /app \
         "$NODE_IMAGE" sh -c "npm install && npm run dev"
 }
