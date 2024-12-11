@@ -31,3 +31,7 @@ Another change, pake freebsd ribet, soale softwarenya tidak up to date, sekarang
 Kita akan mencoba menggunakan podman, instead of docker
 
 # Sabtu, 6 Juli 2024
+
+# Rabu, 11 Desember 2024
+
+Shell script running podman. Using pod in podman is great. It is a very very good experience using podman in shell script. It works really well. Now, this project has become a framework.
