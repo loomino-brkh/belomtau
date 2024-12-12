@@ -30,5 +30,5 @@ monitor_and_pull() {
 
 while true; do
   monitor_and_pull
-  sleep 30
+  sleep 45
 done
