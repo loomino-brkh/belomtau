@@ -20,7 +20,14 @@ monitor_and_pull() {
       echo "Up to date: $repo_dir"
     elif [ "$LOCAL" = "$BASE" ]; then
       echo "Pulling updates in: $repo_dir"
-      git pull
+      if ! git pull; then
+        echo "Pull failed, attempting to reset and pull again in: $repo_dir"
+        git reset --hard HEAD
+        git clean -fd
+        if ! git pull; then
+          echo "Pull still failed after reset in: $repo_dir"
+        fi
+      fi
     else
       echo "Local changes present in: $repo_dir"
     fi
