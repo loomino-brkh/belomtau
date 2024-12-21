@@ -17,6 +17,6 @@ monitor_and_pull() {
 
 while true; do
   monitor_and_pull
-  echo "Monitoring $DIRECTORY for changes..."
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Monitoring $DIRECTORY for changes..."
   sleep 15
 done
