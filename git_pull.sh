@@ -9,12 +9,11 @@ fi
 
 cd "$REPO_DIR" || exit 1
 
-echo "Checking repository: $REPO_DIR"
-git fetch
+# Fetch silently
+git fetch &>/dev/null
 
 # Check if there are any changes to pull
 if git diff --quiet HEAD @{u}; then
-    echo "No changes to pull in: $REPO_DIR"
     exit 0
 else
     echo "Changes detected, pulling updates in: $REPO_DIR"
