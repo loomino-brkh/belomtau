@@ -8,7 +8,7 @@ if [ -z "$DIRECTORY" ]; then
 fi
 
 monitor_and_pull() {
-  find "$DIRECTORY" -type d -name ".git" | while read -r git_dir; do
+  find "$DIRECTORY" -type d -name ".git" 2>/dev/null | while read -r git_dir; do
     repo_dir=$(dirname "$git_dir")
     bash "$(dirname "$0")/git_pull.sh" "$repo_dir" &
   done
