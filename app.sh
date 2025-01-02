@@ -184,7 +184,7 @@ run_gunicorn() {
 
 run_interact() {
   podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
-    -v "$PROJECT_DIR/.root:/root:z" -w /root \
+    # -v "$PROJECT_DIR/.root:/root:z" -w /root \
     -v "$PROJECT_DIR/:/app:z" -w /app \
     "$PYTHON_IMAGE" bash -c "sleep infinity"
 }
