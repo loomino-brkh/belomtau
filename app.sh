@@ -202,7 +202,8 @@ db() {
   podman run -it --rm --pod "${POD_NAME}" \
     -v "${PROJECT_DIR}:/app:z" \
     -w "/app/${APP_NAME}" \
-    "${PYTHON_IMAGE}" bash -c "source /app/venv/bin/activate && python manage.py makemigrations && echo "waiting..." && sleep 5 && python manage.py migrate --verbosity 3"
+    "${PYTHON_IMAGE}" bash -c \
+    "source /app/venv/bin/activate && python manage.py makemigrations && echo "waiting..." && sleep 5 && python manage.py migrate --verbosity 3"
 }
 
 pod_create() {
