@@ -288,7 +288,9 @@ exec uvicorn main:app \
   --reload \
   --host 0.0.0.0 \
   --port 8000 \
-  --log-level info \
+  --workers 4 \
+  --threads 4 \
+  --log-level debug \
   --access-log \
   --use-colors \
   --reload-dir /app/main \
