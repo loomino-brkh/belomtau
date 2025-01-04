@@ -55,8 +55,8 @@ INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
 
 REQUIREMENTS_FILE="${SUPPORT_DIR}/requirements.txt"
 MAIN_FILE="${MAIN_DIR}/main.py"
-DB_FILE="${SUPPORT_DIR}/db.py"
-SCHEMAS_FILE="${SUPPORT_DIR}/schemas.py"
+DB_FILE="${MAIN_DIR}/db.py"
+SCHEMAS_FILE="${MAIN_DIR}/schemas.py"
 
 rev() {
   echo "Creating Python virtual environment and installing requirements..."
@@ -111,7 +111,7 @@ support/.root/
 support/token
 support/venv/
 support/*.log
-django_auth/static/*
+django_auth/static/
 
 # Python
 __pycache__/
