@@ -5,7 +5,7 @@ PORT1="8080"
 PORT2="9080"
 
 APP_NAME="$2"
-PROJECT_DIR="$HOME/eskrim/api_${APP_NAME}"
+PROJECT_DIR="$HOME/proj/api_${APP_NAME}"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
