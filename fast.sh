@@ -169,29 +169,30 @@ EOL
 
   echo "Creating requirements.txt..."
   cat >"$REQUIREMENTS_FILE" <<EOL
-fastapi
-uvicorn
-sqlmodel
-pydantic[email]
-psycopg2-binary
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-redis
-fastapi-limiter
-fastapi-cache2
-python-dotenv
-alembic
-Pillow
-PyYAML
-django
-djangorestframework
-django-cors-headers
-django-environ
-djangorestframework-simplejwt
-requests
-gunicorn
-EOL
+  fastapi
+  uvicorn
+  sqlmodel
+  pydantic[email]
+  psycopg2-binary
+  python-jose[cryptography]
+  passlib[bcrypt]
+  python-multipart
+  redis
+  fastapi-limiter
+  fastapi-cache2
+  python-dotenv
+  alembic
+  Pillow
+  PyYAML
+  django
+  djangorestframework
+  django-cors-headers
+  django-environ
+  djangorestframework-simplejwt
+  requests
+  gunicorn
+  django-redis
+  EOL
 
   rev
 
