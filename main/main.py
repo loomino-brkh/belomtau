@@ -26,7 +26,7 @@ async def startup():
     try:
         # Create database tables
         SQLModel.metadata.create_all(engine)
-        
+
         # Initialize Redis using container name
         redis = aioredis.from_url(f"redis://{os.getenv('REDIS_CONTAINER_NAME', 'localhost')}:6379", encoding="utf8", decode_responses=True)
         await FastAPILimiter.init(redis)
@@ -38,7 +38,7 @@ async def startup():
 async def verify_token(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="No token provided")
-    
+
     try:
         response = requests.post(
             f"http://{os.getenv('DJANGO_CONTAINER_NAME')}:8001/auth/verify/",
