@@ -79,6 +79,7 @@ init() {
   [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
   [ ! -d "$SUPPORT_DIR" ] && mkdir -p "$SUPPORT_DIR"
   [ ! -d "$MAIN_DIR" ] && mkdir -p "$MAIN_DIR"
+  [ ! -d "$DJANGO_DIR" ] && mkdir -p "$DJANGO_DIR"
   [ ! -d "$SUPPORT_DIR/db_data" ] && mkdir -p "$SUPPORT_DIR/db_data"
   [ ! -d "$SUPPORT_DIR/redis_data" ] && mkdir -p "$SUPPORT_DIR/redis_data"
   [ ! -d "$SUPPORT_DIR/.root" ] && mkdir -p "$SUPPORT_DIR/.root"
@@ -306,6 +307,14 @@ server {
     listen $PORT1;
     server_name 127.0.0.1;
 
+    location /auth/ {
+        proxy_pass http://127.0.0.1:8001/auth/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
@@ -418,9 +427,22 @@ pod_create() {
   podman pod create --name "$POD_NAME" --network bridge
 }
 
+run_django() {
+  echo "Starting Django container..."
+  podman run -d --pod "$POD_NAME" --name "$DJANGO_CONTAINER_NAME" \
+    -v "$PROJECT_DIR:/app:z" \
+    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+    -e "POSTGRES_USER=$POSTGRES_USER" \
+    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+    -e "POSTGRES_DB=$POSTGRES_DB" \
+    -w /app \
+    "$PYTHON_IMAGE" ./django_auth/run.sh
+}
+
 esse() {
   run_postgres || return 1
   run_redis || return 1
+  run_django || return 1
   run_uvicorn || return 1
   run_nginx || return 1
   run_cfl_tunnel || return 1
@@ -435,7 +457,7 @@ start() {
 cek() {
   if podman pod exists "$POD_NAME"; then
     if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
         if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
           echo "Container $container is not running. Restarting..."
           podman start "$container" || {
