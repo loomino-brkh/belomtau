@@ -26,6 +26,8 @@ fi
 
 APP_NAME="$2"
 PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
+SUPPORT_DIR="${PROJECT_DIR}/support"
+MAIN_DIR="${PROJECT_DIR}/main"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
@@ -47,10 +49,10 @@ PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
 
-REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
-MAIN_FILE="${PROJECT_DIR}/main.py"
-DB_FILE="${PROJECT_DIR}/db.py"
-SCHEMAS_FILE="${PROJECT_DIR}/schemas.py"
+REQUIREMENTS_FILE="${SUPPORT_DIR}/requirements.txt"
+MAIN_FILE="${MAIN_DIR}/main.py"
+DB_FILE="${SUPPORT_DIR}/db.py"
+SCHEMAS_FILE="${SUPPORT_DIR}/schemas.py"
 
 rev() {
   echo "Creating Python virtual environment and installing requirements..."
@@ -59,10 +61,10 @@ rev() {
     apt-get install -y curl build-essential && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     . \$HOME/.cargo/env && \
-    python -m venv /app/venv && \
-    source /app/venv/bin/activate && \
+    python -m venv /app/support/venv && \
+    source /app/support/venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r /app/requirements.txt"
+    pip install -r /app/support/requirements.txt"
 }
 
 init() {
@@ -73,11 +75,16 @@ init() {
 
   echo "Creating project directories..."
   [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
-  [ ! -d "$PROJECT_DIR/db_data" ] && mkdir -p "$PROJECT_DIR/db_data"
-  [ ! -d "$PROJECT_DIR/redis_data" ] && mkdir -p "$PROJECT_DIR/redis_data"
-  [ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
-  [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
-  [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
+  [ ! -d "$SUPPORT_DIR" ] && mkdir -p "$SUPPORT_DIR"
+  [ ! -d "$MAIN_DIR" ] && mkdir -p "$MAIN_DIR"
+  [ ! -d "$SUPPORT_DIR/db_data" ] && mkdir -p "$SUPPORT_DIR/db_data"
+  [ ! -d "$SUPPORT_DIR/redis_data" ] && mkdir -p "$SUPPORT_DIR/redis_data"
+  [ ! -d "$SUPPORT_DIR/.root" ] && mkdir -p "$SUPPORT_DIR/.root"
+  [ ! -f "$SUPPORT_DIR/token" ] && touch "$SUPPORT_DIR/token"
+  [ ! -d "$SUPPORT_DIR/pgadmin" ] && mkdir -p "$SUPPORT_DIR/pgadmin" && chmod 777 "$SUPPORT_DIR/pgadmin"
+  [ ! -d "$MAIN_DIR/staticfiles" ] && mkdir -p "$MAIN_DIR/staticfiles"
+  [ ! -d "$MAIN_DIR/media" ] && mkdir -p "$MAIN_DIR/media"
+  [ ! -d "$MAIN_DIR/frontend" ] && mkdir -p "$MAIN_DIR/frontend"
 
   echo "Creating requirements.txt..."
   cat >"$REQUIREMENTS_FILE" <<EOL
@@ -109,9 +116,10 @@ from fastapi_cache.backends.redis import RedisBackend
 from fastapi_limiter import FastAPILimiter
 from redis import asyncio as aioredis
 from sqlmodel import SQLModel
+import sys, os
+sys.path.append('/app/support')
 from db import engine
 import uvicorn
-import os
 
 app = FastAPI()
 
@@ -201,17 +209,17 @@ class UserRead(UserBase):
 EOL
 
   echo "Creating uvicorn.sh..."
-  cat >"$PROJECT_DIR/uvicorn.sh" <<EOL
+  cat >"$SUPPORT_DIR/uvicorn.sh" <<EOL
 #!/bin/bash
-source /app/venv/bin/activate
-cd /app
+source /app/support/venv/bin/activate
+cd /app/main
 exec uvicorn main:app --reload --host 0.0.0.0 --port 8000
 EOL
 
-  chmod 755 "$PROJECT_DIR/uvicorn.sh"
+  chmod 755 "$SUPPORT_DIR/uvicorn.sh"
 
   echo "Creating nginx.conf..."
-  cat >"$PROJECT_DIR/nginx.conf" <<EOL
+  cat >"$SUPPORT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT1;
     server_name 127.0.0.1;
@@ -223,16 +231,16 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-
 }
 EOL
 
   echo "Initializing Alembic..."
   podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
-    source /app/venv/bin/activate && \
+    source /app/support/venv/bin/activate && \
+    cd /app/support && \
     pip install alembic && \
     alembic init migrations"
-  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$PROJECT_DIR/alembic.ini"
+  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
 }
 
 stop() {
@@ -247,57 +255,57 @@ run_postgres() {
     -e POSTGRES_DB="$POSTGRES_DB" \
     -e POSTGRES_USER="$POSTGRES_USER" \
     -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -v "$PROJECT_DIR/db_data:/var/lib/postgresql/data:z" \
+    -v "$SUPPORT_DIR/db_data:/var/lib/postgresql/data:z" \
     "$POSTGRES_IMAGE"
 }
 
 run_redis() {
   echo "Starting Redis container..."
   podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
-    -v "$PROJECT_DIR/redis_data:/data:z" \
+    -v "$SUPPORT_DIR/redis_data:/data:z" \
     "$REDIS_IMAGE" --loglevel verbose
 }
 
 run_nginx() {
   echo "Starting Nginx container..."
   podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
-    -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-    -v "$PROJECT_DIR/staticfiles:/www/staticfiles:ro" \
-    -v "$PROJECT_DIR/media:/www/media:ro" \
-    -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
+    -v "$SUPPORT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+    -v "$MAIN_DIR/staticfiles:/www/staticfiles:ro" \
+    -v "$MAIN_DIR/media:/www/media:ro" \
+    -v "$MAIN_DIR/frontend:/www/frontend:ro" \
     "$NGINX_IMAGE"
 }
 
 run_cfl_tunnel() {
-  if [ ! -s "$PROJECT_DIR/token" ]; then
-    echo "Error: Cloudflare tunnel token is empty. Please add your token to $PROJECT_DIR/token"
+  if [ ! -s "$SUPPORT_DIR/token" ]; then
+    echo "Error: Cloudflare tunnel token is empty. Please add your token to $SUPPORT_DIR/token"
     return 1
   fi
   
   echo "Starting Cloudflare tunnel..."
   podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
     docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-    --token $(cat "$PROJECT_DIR/token")
+    --token $(cat "$SUPPORT_DIR/token")
 }
 
 run_uvicorn() {
   echo "Starting Uvicorn container..."
   podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:ro" \
-    -v "$PROJECT_DIR/media:/app/media:z" \
+    -v "$MAIN_DIR/media:/app/main/media:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
     -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
     -e "POSTGRES_USER=$POSTGRES_USER" \
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -w /app \
-    "$PYTHON_IMAGE" ./uvicorn.sh
+    "$PYTHON_IMAGE" ./support/uvicorn.sh
 }
 
 run_interact() {
   echo "Starting interactive container..."
   podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
-    -v "$PROJECT_DIR/.root:/root:z" \
+    -v "$SUPPORT_DIR/.root:/root:z" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
     "$PYTHON_IMAGE" bash -c "sleep infinity"
@@ -309,7 +317,7 @@ pg() {
     -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
     -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
     -e "PGADMIN_LISTEN_PORT=5050" \
-    -v "$PROJECT_DIR/pgadmin:/var/lib/pgadmin:z" \
+    -v "$SUPPORT_DIR/pgadmin:/var/lib/pgadmin:z" \
     "$PGADMIN_IMAGE"
 }
 
@@ -317,9 +325,9 @@ db() {
   echo "Running database migrations..."
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
-    -w /app \
+    -w /app/support \
     "$PYTHON_IMAGE" bash -c \
-    "source /app/venv/bin/activate && alembic revision --autogenerate -m 'initial' && alembic upgrade head"
+    "source /app/support/venv/bin/activate && alembic revision --autogenerate -m 'initial' && alembic upgrade head"
 }
 
 pod_create() {
