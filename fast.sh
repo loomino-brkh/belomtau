@@ -84,6 +84,8 @@ init() {
     "$SUPPORT_DIR" \
     "$MAIN_DIR" \
     "$DJANGO_DIR" \
+    "$DJANGO_DIR/auth_project" \
+    "$DJANGO_DIR/authentication" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
     "$SUPPORT_DIR/.root" \
