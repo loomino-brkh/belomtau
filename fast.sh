@@ -21,14 +21,17 @@ POSTGRES_PASSWORD="supersecure"
 
 POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
-GUNICORN_CONTAINER_NAME="${APP_NAME}_gunicorn"
+UVICORN_CONTAINER_NAME="${APP_NAME}_uvicorn"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
 
 REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
-SETTINGS_FILE="${PROJECT_DIR}/${APP_NAME}/${APP_NAME}/settings.py"
+MAIN_FILE="${PROJECT_DIR}/main.py"
+DB_FILE="${PROJECT_DIR}/db.py"
+SCHEMAS_FILE="${PROJECT_DIR}/schemas.py"
+MODELS_FILE="${PROJECT_DIR}/models.py"
 
 rev() {
   podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" python -m venv /app/venv
@@ -47,48 +50,102 @@ init() {
   [ ! -d "$PROJECT_DIR/media" ] && mkdir -p "$PROJECT_DIR/media"
 
   cat >"$REQUIREMENTS_FILE" <<EOL
-Django
-djangorestframework
-djangorestframework-simplejwt
-django-ratelimit
-django-cors-headers
+fastapi
+uvicorn
+sqlalchemy
+pydantic[email]
 psycopg2-binary
-gunicorn
-django-redis
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+redis
+fastapi-limiter
+fastapi-cache2
+python-dotenv
+alembic
 Pillow
 EOL
 
   rev
-  podman run --rm -v "$PROJECT_DIR:/app" -w /app "$PYTHON_IMAGE" bash -c "/app/venv/bin/django-admin startproject $APP_NAME"
-  [ ! -d "$PROJECT_DIR/${APP_NAME}/static" ] && mkdir -p "$PROJECT_DIR/${APP_NAME}/static"
-  [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
 
-  sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[/g" "${SETTINGS_FILE}"
-  sed -i "/ALLOWED_HOSTS = \[/a\     '$HOST_IP',\n     '$HOST_DOMAIN',\n\]" "${SETTINGS_FILE}"
-  sed -i "s/'ENGINE': 'django.db.backends.sqlite3'/'ENGINE': 'django.db.backends.postgresql'/g" "${SETTINGS_FILE}"
-  sed -i "s/'NAME': BASE_DIR \/ 'db.sqlite3'/'NAME': '$POSTGRES_DB'/g" "${SETTINGS_FILE}"
-  sed -i "/'NAME': '$POSTGRES_DB'/a\        'USER': '$POSTGRES_USER',\n        'PASSWORD': '$POSTGRES_PASSWORD',\n        'HOST': 'localhost',\n        'PORT': '5432'," "${SETTINGS_FILE}"
+  cat >"$MAIN_FILE" <<EOL
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_limiter import FastAPILimiter
+from redis import asyncio as aioredis
+import uvicorn
 
-  cat <<EOL >>"${SETTINGS_FILE}"
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://localhost:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
-}
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory="staticfiles"), name="static")
+app.mount("/media", StaticFiles(directory="media"), name="media")
+
+@app.on_event("startup")
+async def startup():
+    redis = aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
+    await FastAPILimiter.init(redis)
+    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 EOL
 
-  cat >"$PROJECT_DIR/gunicorn.sh" <<EOL
+  cat >"$DB_FILE" <<EOL
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+SQLALCHEMY_DATABASE_URL = f"postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+EOL
+
+  cat >"$SCHEMAS_FILE" <<EOL
+from pydantic import BaseModel
+
+# Add your Pydantic models here
+EOL
+
+  cat >"$MODELS_FILE" <<EOL
+from sqlalchemy import Column, Integer, String
+from db import Base
+
+# Add your SQLAlchemy models here
+EOL
+
+  cat >"$PROJECT_DIR/uvicorn.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
-cd /app/${APP_NAME}
-exec gunicorn --reload --log-level=debug --workers 2 --bind 0.0.0.0:8000 $APP_NAME.wsgi:application
+cd /app
+exec uvicorn main:app --reload --host 0.0.0.0 --port 8000
 EOL
 
-  chmod +x "$PROJECT_DIR/gunicorn.sh"
+  chmod +x "$PROJECT_DIR/uvicorn.sh"
 
   cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
@@ -118,14 +175,6 @@ server {
     location /media/ {
         alias /www/media/;
     }
-    
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/api/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
 }
 
 server {
@@ -137,6 +186,9 @@ server {
     }
 }
 EOL
+
+  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && alembic init migrations"
+  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$PROJECT_DIR/alembic.ini"
 }
 
 stop() {
@@ -162,7 +214,7 @@ run_redis() {
 run_nginx() {
   podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
     -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-    -v "$PROJECT_DIR/$APP_NAME/staticfiles:/www/staticfiles:ro" \
+    -v "$PROJECT_DIR/staticfiles:/www/staticfiles:ro" \
     -v "$PROJECT_DIR/media:/www/media:ro" \
     -v "$PROJECT_DIR/frontend:/www/frontend:ro" \
     "$NGINX_IMAGE"
@@ -174,12 +226,12 @@ run_cfl_tunnel() {
     --token $(cat "$PROJECT_DIR/token")
 }
 
-run_gunicorn() {
-  podman run -d --pod "$POD_NAME" --name "$GUNICORN_CONTAINER_NAME" \
+run_uvicorn() {
+  podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:ro" \
     -v "$PROJECT_DIR/media:/app/media:z" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c "./gunicorn.sh"
+    "$PYTHON_IMAGE" bash -c "./uvicorn.sh"
 }
 
 run_interact() {
@@ -201,9 +253,9 @@ pg() {
 db() {
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
-    -w "/app/${APP_NAME}" \
-    "${PYTHON_IMAGE}" bash -c \
-    "source /app/venv/bin/activate && python manage.py makemigrations && echo "waiting..." && sleep 5 && python manage.py migrate --verbosity 3"
+    -w /app \
+    "$PYTHON_IMAGE" bash -c \
+    "source /app/venv/bin/activate && alembic revision --autogenerate -m 'initial' && alembic upgrade head"
 }
 
 pod_create() {
@@ -213,7 +265,7 @@ pod_create() {
 esse() {
   run_postgres
   run_redis
-  run_gunicorn
+  run_uvicorn
   run_nginx
   run_cfl_tunnel
   run_interact
@@ -227,7 +279,7 @@ start() {
 cek() {
   if podman pod exists "$POD_NAME"; then
     if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${GUNICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
         if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
           echo "Container $container is not running. Restarting..."
           podman start "$container"
