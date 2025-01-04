@@ -30,6 +30,7 @@ APP_NAME="$2"
 PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
 SUPPORT_DIR="${PROJECT_DIR}/support"
 MAIN_DIR="${PROJECT_DIR}/main"
+DJANGO_DIR="${PROJECT_DIR}/django_auth"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
@@ -77,9 +78,6 @@ init() {
   fi
 
   echo "Creating project directories..."
-  # Define DJANGO_DIR
-  DJANGO_DIR="${PROJECT_DIR}/django_auth"
-
   # Create all required directories
   for dir in \
     "$PROJECT_DIR" \
