@@ -316,6 +316,70 @@ server {
 }
 EOL
 
+  echo "Creating log_config.yaml..."
+  cat >"$SUPPORT_DIR/log_config.yaml" <<EOL
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  default:
+    (): uvicorn.logging.DefaultFormatter
+    fmt: '%(levelprefix)s %(asctime)s | %(message)s'
+    use_colors: true
+  access:
+    (): uvicorn.logging.AccessFormatter
+    fmt: '%(levelprefix)s %(asctime)s | %(client_addr)s - "%(request_line)s" %(status_code)s'
+    use_colors: true
+
+handlers:
+  default:
+    class: logging.StreamHandler
+    formatter: default
+    stream: ext://sys.stdout
+  access:
+    class: logging.StreamHandler
+    formatter: access
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: default
+    filename: /app/support/logs/app.log
+    maxBytes: 10485760  # 10MB
+    backupCount: 5
+  access_file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: access
+    filename: /app/support/logs/access.log
+    maxBytes: 10485760  # 10MB
+    backupCount: 5
+
+loggers:
+  uvicorn:
+    level: DEBUG
+    handlers: [default, file]
+    propagate: no
+  uvicorn.error:
+    level: DEBUG
+    handlers: [default, file]
+    propagate: no
+  uvicorn.access:
+    level: DEBUG
+    handlers: [access, access_file]
+    propagate: no
+  fastapi:
+    level: DEBUG
+    handlers: [default, file]
+    propagate: no
+  sqlalchemy.engine:
+    level: DEBUG
+    handlers: [default, file]
+    propagate: no
+
+root:
+  level: INFO
+  handlers: [default, file]
+EOL
+
   echo "Initializing Alembic..."
   podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
     source /app/support/venv/bin/activate && \
