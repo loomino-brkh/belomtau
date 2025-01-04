@@ -55,8 +55,15 @@ SCHEMAS_FILE="${PROJECT_DIR}/schemas.py"
 
 rev() {
   echo "Creating Python virtual environment and installing requirements..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" python -m venv /app/venv
-  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
+  podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
+    apt-get update && \
+    apt-get install -y curl build-essential && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . \$HOME/.cargo/env && \
+    python -m venv /app/venv && \
+    source /app/venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install -r /app/requirements.txt"
 }
 
 init() {
