@@ -111,9 +111,6 @@ support/.root/
 support/token
 support/venv/
 support/*.log
-main/media/*
-main/staticfiles/*
-main/frontend/*
 django_auth/static/*
 
 # Python
@@ -435,9 +432,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/static", StaticFiles(directory="staticfiles"), name="static")
-app.mount("/media", StaticFiles(directory="media"), name="media")
 
 @app.on_event("startup")
 async def startup():
