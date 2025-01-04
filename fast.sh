@@ -1,7 +1,9 @@
 #!/bin/bash
 # ---- Configuration -------
 HOST_DOMAIN="dev.var.my.id"
-PORT1="8080"
+PORT1="8080"  # Nginx port
+PORT2="8000"  # FastAPI port
+PORT3="8001"  # Django port
 
 # Check if command argument is provided
 if [ -z "$1" ]; then
