@@ -4,6 +4,27 @@ HOST_DOMAIN="dev.var.my.id"
 PORT1="8080"
 PORT2="9080"
 
+# Check if command argument is provided
+if [ -z "$1" ]; then
+    echo "Error: Command argument is required"
+    echo "Usage: $0 <command> <app_name>"
+    echo "Commands: init, start, stop, cek, pg, db, rev"
+    exit 1
+fi
+
+# Check if app name is provided
+if [ -z "$2" ]; then
+    echo "Error: App name is required"
+    echo "Usage: $0 <command> <app_name>"
+    exit 1
+fi
+
+# Check if podman is installed
+if ! command -v podman &> /dev/null; then
+    echo "Error: podman is not installed"
+    exit 1
+fi
+
 APP_NAME="$2"
 PROJECT_DIR="$HOME/proj/api_${APP_NAME}"
 
@@ -33,11 +54,18 @@ DB_FILE="${PROJECT_DIR}/db.py"
 SCHEMAS_FILE="${PROJECT_DIR}/schemas.py"
 
 rev() {
+  echo "Creating Python virtual environment and installing requirements..."
   podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" python -m venv /app/venv
   podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && pip install --upgrade pip && pip install -r /app/requirements.txt"
 }
 
 init() {
+  # Check if project directory already exists
+  if [ -d "$PROJECT_DIR" ]; then
+    echo "Warning: Project directory already exists. Some files may be overwritten."
+  fi
+
+  echo "Creating project directories..."
   [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
   [ ! -d "$PROJECT_DIR/db_data" ] && mkdir -p "$PROJECT_DIR/db_data"
   [ ! -d "$PROJECT_DIR/redis_data" ] && mkdir -p "$PROJECT_DIR/redis_data"
@@ -48,6 +76,7 @@ init() {
   [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
   [ ! -d "$PROJECT_DIR/media" ] && mkdir -p "$PROJECT_DIR/media"
 
+  echo "Creating requirements.txt..."
   cat >"$REQUIREMENTS_FILE" <<EOL
 fastapi
 uvicorn
@@ -67,6 +96,7 @@ EOL
 
   rev
 
+  echo "Creating main.py..."
   cat >"$MAIN_FILE" <<EOL
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,6 +108,7 @@ from redis import asyncio as aioredis
 from sqlmodel import SQLModel
 from db import engine
 import uvicorn
+import os
 
 app = FastAPI()
 
@@ -94,13 +125,17 @@ app.mount("/media", StaticFiles(directory="media"), name="media")
 
 @app.on_event("startup")
 async def startup():
-    # Create database tables
-    SQLModel.metadata.create_all(engine)
-    
-    # Initialize Redis
-    redis = aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-    await FastAPILimiter.init(redis)
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    try:
+        # Create database tables
+        SQLModel.metadata.create_all(engine)
+        
+        # Initialize Redis using container name
+        redis = aioredis.from_url(f"redis://{os.getenv('REDIS_CONTAINER_NAME', 'localhost')}:6379", encoding="utf8", decode_responses=True)
+        await FastAPILimiter.init(redis)
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    except Exception as e:
+        print(f"Startup error: {e}")
+        raise
 
 @app.get("/")
 async def root():
@@ -110,19 +145,32 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 EOL
 
+  echo "Creating db.py..."
   cat >"$DB_FILE" <<EOL
 from sqlmodel import SQLModel, create_engine, Session
 from typing import Generator
+import os
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
+# Use container name for database connection
+POSTGRES_CONTAINER = os.getenv('POSTGRES_CONTAINER_NAME', 'localhost')
+POSTGRES_USER = os.getenv('POSTGRES_USER', '${POSTGRES_USER}')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '${POSTGRES_PASSWORD}')
+POSTGRES_DB = os.getenv('POSTGRES_DB', '${POSTGRES_DB}')
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SQLALCHEMY_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_CONTAINER}:5432/{POSTGRES_DB}"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
 
 def get_db() -> Generator[Session, None, None]:
-    with Session(engine) as session:
-        yield session
+    try:
+        with Session(engine) as session:
+            yield session
+    except Exception as e:
+        print(f"Database error: {e}")
+        raise
 EOL
 
+  echo "Creating schemas.py..."
   cat >"$SCHEMAS_FILE" <<EOL
 from sqlmodel import SQLModel, Field
 from typing import Optional
@@ -149,6 +197,7 @@ class UserRead(UserBase):
     created_at: datetime
 EOL
 
+  echo "Creating uvicorn.sh..."
   cat >"$PROJECT_DIR/uvicorn.sh" <<EOL
 #!/bin/bash
 source /app/venv/bin/activate
@@ -158,6 +207,7 @@ EOL
 
   chmod +x "$PROJECT_DIR/uvicorn.sh"
 
+  echo "Creating nginx.conf..."
   cat >"$PROJECT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT1;
@@ -198,16 +248,19 @@ server {
 }
 EOL
 
+  echo "Initializing Alembic..."
   podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && alembic init migrations"
   sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$PROJECT_DIR/alembic.ini"
 }
 
 stop() {
-  podman pod stop "$POD_NAME"
-  podman pod rm "$POD_NAME"
+  echo "Stopping and removing pod..."
+  podman pod stop "$POD_NAME" || true
+  podman pod rm "$POD_NAME" || true
 }
 
 run_postgres() {
+  echo "Starting PostgreSQL container..."
   podman run -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
     -e POSTGRES_DB="$POSTGRES_DB" \
     -e POSTGRES_USER="$POSTGRES_USER" \
@@ -217,12 +270,14 @@ run_postgres() {
 }
 
 run_redis() {
+  echo "Starting Redis container..."
   podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
     -v "$PROJECT_DIR/redis_data:/data:z" \
     "$REDIS_IMAGE" --loglevel verbose
 }
 
 run_nginx() {
+  echo "Starting Nginx container..."
   podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
     -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
     -v "$PROJECT_DIR/staticfiles:/www/staticfiles:ro" \
@@ -232,20 +287,33 @@ run_nginx() {
 }
 
 run_cfl_tunnel() {
+  if [ ! -s "$PROJECT_DIR/token" ]; then
+    echo "Error: Cloudflare tunnel token is empty. Please add your token to $PROJECT_DIR/token"
+    return 1
+  fi
+  
+  echo "Starting Cloudflare tunnel..."
   podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
     docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
     --token $(cat "$PROJECT_DIR/token")
 }
 
 run_uvicorn() {
+  echo "Starting Uvicorn container..."
   podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:ro" \
     -v "$PROJECT_DIR/media:/app/media:z" \
+    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+    -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
+    -e "POSTGRES_USER=$POSTGRES_USER" \
+    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+    -e "POSTGRES_DB=$POSTGRES_DB" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c "./uvicorn.sh"
+    "$PYTHON_IMAGE" bash -c "chmod +x ./uvicorn.sh && ./uvicorn.sh"
 }
 
 run_interact() {
+  echo "Starting interactive container..."
   podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
@@ -253,6 +321,7 @@ run_interact() {
 }
 
 pg() {
+  echo "Starting pgAdmin container..."
   podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
     -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
     -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
@@ -262,6 +331,7 @@ pg() {
 }
 
 db() {
+  echo "Running database migrations..."
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
@@ -270,16 +340,17 @@ db() {
 }
 
 pod_create() {
+  echo "Creating pod..."
   podman pod create --name "$POD_NAME" --network bridge
 }
 
 esse() {
-  run_postgres
-  run_redis
-  run_uvicorn
-  run_nginx
-  run_cfl_tunnel
-  run_interact
+  run_postgres || return 1
+  run_redis || return 1
+  run_uvicorn || return 1
+  run_nginx || return 1
+  run_cfl_tunnel || return 1
+  run_interact || return 1
 }
 
 start() {
@@ -293,18 +364,25 @@ cek() {
       for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
         if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
           echo "Container $container is not running. Restarting..."
-          podman start "$container"
-          return
+          podman start "$container" || {
+            echo "Failed to restart $container"
+            return 1
+          }
         fi
       done
       echo "All containers are running."
     else
-      podman pod start "$POD_NAME"
+      echo "Pod is not running. Starting pod..."
+      podman pod start "$POD_NAME" || {
+        echo "Failed to start pod"
+        return 1
+      }
     fi
   else
-    echo "Pod is not running. Starting..."
+    echo "Pod does not exist. Creating and starting..."
     start
   fi
 }
 
+# Execute the command
 $1
