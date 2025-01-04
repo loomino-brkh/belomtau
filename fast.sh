@@ -192,8 +192,10 @@ EOL
     source /app/support/venv/bin/activate && \
     cd /app/django_auth && \
     django-admin startproject auth_project . && \
-    python manage.py startapp authentication && \
-    mkdir -p auth_project"
+    python manage.py startapp authentication"
+
+  # Wait a moment to ensure files are created
+  sleep 1
 
   # Create Django settings
   echo "Creating Django settings..."
