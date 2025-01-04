@@ -60,7 +60,7 @@ SCHEMAS_FILE="${MAIN_DIR}/schemas.py"
 
 rev() {
   echo "Creating Python virtual environment and installing requirements..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
+  podman run --rm -v "$PROJECT_DIR:/app:z" -v "$SUPPORT_DIR/.root:/root:z" "$PYTHON_IMAGE" bash -c "
     apt-get update && \
     apt-get install -y curl build-essential && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
@@ -294,7 +294,7 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = 'auth/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -549,6 +549,10 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+    
+    location /auth/static/ {
+        alias /www/django_auth/staticfiles/;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -596,9 +600,7 @@ run_nginx() {
   echo "Starting Nginx container..."
   podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
     -v "$SUPPORT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-    -v "$MAIN_DIR/staticfiles:/www/staticfiles:ro" \
-    -v "$MAIN_DIR/media:/www/media:ro" \
-    -v "$MAIN_DIR/frontend:/www/frontend:ro" \
+    -v "$DJANGO_DIR/static:/www/django_auth/staticfiles:ro" \
     "$NGINX_IMAGE"
 }
 
