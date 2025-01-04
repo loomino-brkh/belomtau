@@ -212,7 +212,7 @@ cd /app
 exec uvicorn main:app --reload --host 0.0.0.0 --port 8000
 EOL
 
-  chmod +x "$PROJECT_DIR/uvicorn.sh"
+  chmod 755 "$PROJECT_DIR/uvicorn.sh"
 
   echo "Creating nginx.conf..."
   cat >"$PROJECT_DIR/nginx.conf" <<EOL
@@ -319,7 +319,7 @@ run_uvicorn() {
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c "chmod +x ./uvicorn.sh && ./uvicorn.sh"
+    "$PYTHON_IMAGE" ./uvicorn.sh
 }
 
 run_interact() {
