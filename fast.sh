@@ -85,6 +85,7 @@ init() {
   [ ! -d "$MAIN_DIR/staticfiles" ] && mkdir -p "$MAIN_DIR/staticfiles"
   [ ! -d "$MAIN_DIR/media" ] && mkdir -p "$MAIN_DIR/media"
   [ ! -d "$MAIN_DIR/frontend" ] && mkdir -p "$MAIN_DIR/frontend"
+  [ ! -d "$SUPPORT_DIR/logs" ] && mkdir -p "$SUPPORT_DIR/logs"
 
   echo "Creating .gitignore..."
   cat >"$PROJECT_DIR/.gitignore" <<EOL
@@ -282,21 +283,16 @@ EOL
 source /app/support/venv/bin/activate
 cd /app/main
 
-# Create log directory if it doesn't exist
-mkdir -p /app/support/logs
-
-# Run uvicorn with verbose logging
+# Run uvicorn with simplified logging
 exec uvicorn main:app \
   --reload \
   --host 0.0.0.0 \
   --port 8000 \
-  --log-level debug \
+  --log-level info \
   --access-log \
   --use-colors \
-  --workers 1 \
   --reload-dir /app/main \
-  --reload-dir /app/support \
-  --log-config /app/support/log_config.yaml
+  2>&1 | tee /app/support/logs/uvicorn.log
 EOL
 
   chmod 755 "$SUPPORT_DIR/uvicorn.sh"
@@ -315,70 +311,6 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
-EOL
-
-  echo "Creating log_config.yaml..."
-  cat >"$SUPPORT_DIR/log_config.yaml" <<EOL
-version: 1
-disable_existing_loggers: false
-
-formatters:
-  default:
-    (): uvicorn.logging.DefaultFormatter
-    fmt: '%(levelprefix)s %(asctime)s | %(message)s'
-    use_colors: true
-  access:
-    (): uvicorn.logging.AccessFormatter
-    fmt: '%(levelprefix)s %(asctime)s | %(client_addr)s - "%(request_line)s" %(status_code)s'
-    use_colors: true
-
-handlers:
-  default:
-    class: logging.StreamHandler
-    formatter: default
-    stream: ext://sys.stdout
-  access:
-    class: logging.StreamHandler
-    formatter: access
-    stream: ext://sys.stdout
-  file:
-    class: logging.handlers.RotatingFileHandler
-    formatter: default
-    filename: /app/support/logs/app.log
-    maxBytes: 10485760  # 10MB
-    backupCount: 5
-  access_file:
-    class: logging.handlers.RotatingFileHandler
-    formatter: access
-    filename: /app/support/logs/access.log
-    maxBytes: 10485760  # 10MB
-    backupCount: 5
-
-loggers:
-  uvicorn:
-    level: DEBUG
-    handlers: [default, file]
-    propagate: no
-  uvicorn.error:
-    level: DEBUG
-    handlers: [default, file]
-    propagate: no
-  uvicorn.access:
-    level: DEBUG
-    handlers: [access, access_file]
-    propagate: no
-  fastapi:
-    level: DEBUG
-    handlers: [default, file]
-    propagate: no
-  sqlalchemy.engine:
-    level: DEBUG
-    handlers: [default, file]
-    propagate: no
-
-root:
-  level: INFO
-  handlers: [default, file]
 EOL
 
   echo "Initializing Alembic..."
@@ -410,7 +342,7 @@ run_redis() {
   echo "Starting Redis container..."
   podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
     -v "$SUPPORT_DIR/redis_data:/data:z" \
-    "$REDIS_IMAGE" --loglevel verbose
+    "$REDIS_IMAGE" --loglevel warning
 }
 
 run_nginx() {
@@ -438,8 +370,9 @@ run_cfl_tunnel() {
 run_uvicorn() {
   echo "Starting Uvicorn container..."
   podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
-    -v "$PROJECT_DIR:/app:ro" \
+    -v "$PROJECT_DIR:/app:z" \
     -v "$MAIN_DIR/media:/app/main/media:z" \
+    -v "$SUPPORT_DIR/logs:/app/support/logs:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
     -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
     -e "POSTGRES_USER=$POSTGRES_USER" \
