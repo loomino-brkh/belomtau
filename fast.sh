@@ -620,7 +620,6 @@ run_uvicorn() {
   echo "Starting Uvicorn container..."
   podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:z" \
-    -v "$MAIN_DIR/media:/app/main/media:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
     -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
     -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
