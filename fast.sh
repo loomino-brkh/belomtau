@@ -26,7 +26,7 @@ if ! command -v podman &> /dev/null; then
 fi
 
 APP_NAME="$2"
-PROJECT_DIR="$HOME/proj/api_${APP_NAME}"
+PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
