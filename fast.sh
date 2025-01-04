@@ -31,7 +31,6 @@ REQUIREMENTS_FILE="${PROJECT_DIR}/requirements.txt"
 MAIN_FILE="${PROJECT_DIR}/main.py"
 DB_FILE="${PROJECT_DIR}/db.py"
 SCHEMAS_FILE="${PROJECT_DIR}/schemas.py"
-MODELS_FILE="${PROJECT_DIR}/models.py"
 
 rev() {
   podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" python -m venv /app/venv
@@ -148,11 +147,6 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     id: int
     created_at: datetime
-EOL
-
-  cat >"$MODELS_FILE" <<EOL
-# This file can be removed since SQLModel combines 
-# Pydantic and SQLAlchemy models in schemas.py
 EOL
 
   cat >"$PROJECT_DIR/uvicorn.sh" <<EOL
