@@ -200,7 +200,8 @@ EOL
 
   # Initialize Django project
   echo "Initializing Django project..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
+  sleep 2
+  podman run -it --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
     source /app/support/venv/bin/activate && \
     cd /app/django_auth && \
     django-admin startproject auth_project . && \
