@@ -648,6 +648,7 @@ pg() {
     -v "$SUPPORT_DIR/pgadmin:/var/lib/pgadmin:z" \
     "$PGADMIN_IMAGE"
 }
+
 db() {
   echo "Running database migrations..."
   
