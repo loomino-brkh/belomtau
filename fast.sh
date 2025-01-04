@@ -335,6 +335,17 @@ urlpatterns = [
 ]
 EOL
 
+  echo "Creating Django project URLs..."
+  cat >"$DJANGO_DIR/auth_project/urls.py" <<EOL
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('auth/', include('authentication.urls')),
+]
+EOL
+
   echo "Creating Django run script..."
   cat >"$DJANGO_DIR/run.sh" <<EOL
 #!/bin/bash
