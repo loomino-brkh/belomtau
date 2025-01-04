@@ -658,6 +658,7 @@ run_uvicorn() {
     -e "POSTGRES_USER=$POSTGRES_USER" \
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
     -e "POSTGRES_DB=$POSTGRES_DB" \
+    -e "DJANGO_SECRET_KEY=$RANDOM_KEY" \
     -w /app \
     "$PYTHON_IMAGE" ./support/uvicorn.sh
 }
