@@ -216,7 +216,7 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-change-this-in-production'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '${RANDOM_KEY}')
 
 DEBUG = True
 
