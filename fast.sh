@@ -419,7 +419,7 @@ from fastapi_limiter import FastAPILimiter
 from redis import asyncio as aioredis
 from sqlmodel import SQLModel
 import sys, os, requests
-sys.path.append('/app/support')
+sys.path.append('/app/main')
 from db import engine
 import uvicorn
 
