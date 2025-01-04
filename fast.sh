@@ -88,7 +88,6 @@ init() {
     "$SUPPORT_DIR/redis_data" \
     "$SUPPORT_DIR/.root" \
     "$SUPPORT_DIR/pgadmin" \
-    "$MAIN_DIR/media" \
     "$SUPPORT_DIR/logs"; do
     if [ ! -d "$dir" ]; then
       mkdir -p "$dir"
