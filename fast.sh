@@ -46,6 +46,7 @@ POSTGRES_PASSWORD="supersecure"
 POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 UVICORN_CONTAINER_NAME="${APP_NAME}_uvicorn"
+DJANGO_CONTAINER_NAME="${APP_NAME}_django"
 NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
 PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
 CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
@@ -174,13 +175,193 @@ python-dotenv
 alembic
 Pillow
 PyYAML
+django
+djangorestframework
+django-cors-headers
+django-environ
+djangorestframework-simplejwt
+requests
 EOL
 
   rev
 
+  # Initialize Django project
+  echo "Initializing Django project..."
+  podman run --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
+    source /app/support/venv/bin/activate && \
+    cd /app/django_auth && \
+    django-admin startproject auth_project . && \
+    python manage.py startapp authentication"
+
+  # Create Django settings
+  echo "Creating Django settings..."
+  cat >"$DJANGO_DIR/auth_project/settings.py" <<EOL
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = 'django-insecure-change-this-in-production'
+
+DEBUG = True
+
+ALLOWED_HOSTS = ['*']
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
+    'authentication',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'auth_project.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'auth_project.wsgi.application'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB'),
+        'USER': os.getenv('POSTGRES_USER'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
+        'HOST': os.getenv('POSTGRES_CONTAINER_NAME'),
+        'PORT': '5432',
+    }
+}
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
+
+CORS_ALLOW_ALL_ORIGINS = True
+EOL
+
+  echo "Creating Django authentication views..."
+  cat >"$DJANGO_DIR/authentication/views.py" <<EOL
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+
+@api_view(['POST'])
+def login(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    user = authenticate(username=username, password=password)
+    if user:
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })
+    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_token(request):
+    return Response({'status': 'valid'})
+EOL
+
+  echo "Creating Django URLs..."
+  cat >"$DJANGO_DIR/authentication/urls.py" <<EOL
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('login/', views.login, name='login'),
+    path('verify/', views.verify_token, name='verify'),
+]
+EOL
+
+  echo "Creating Django run script..."
+  cat >"$DJANGO_DIR/run.sh" <<EOL
+#!/bin/bash
+source /app/support/venv/bin/activate
+cd /app/django_auth
+
+# Apply migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Create superuser if it doesn't exist
+python manage.py shell <<EOF
+from django.contrib.auth import get_user_model
+User = get_user_model()
+if not User.objects.filter(username='admin').exists():
+    User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+EOF
+
+# Run Django development server
+exec python manage.py runserver 0.0.0.0:8001
+EOL
+
+  chmod 755 "$DJANGO_DIR/run.sh"
+
   echo "Creating main.py..."
   cat >"$MAIN_FILE" <<EOL
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi_cache import FastAPICache
@@ -220,7 +401,21 @@ async def startup():
         print(f"Startup error: {e}")
         raise
 
-@app.get("/")
+async def verify_token(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No token provided")
+    
+    try:
+        response = requests.post(
+            f"http://{os.getenv('DJANGO_CONTAINER_NAME')}:8001/auth/verify/",
+            headers={"Authorization": authorization}
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except requests.RequestException:
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
+@app.get("/", dependencies=[Depends(verify_token)])
 async def root():
     return {"message": "Hello World"}
 
