@@ -297,6 +297,7 @@ run_uvicorn() {
 run_interact() {
   echo "Starting interactive container..."
   podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+    -v "$PROJECT_DIR/.root:/root:z" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
     "$PYTHON_IMAGE" bash -c "sleep infinity"
