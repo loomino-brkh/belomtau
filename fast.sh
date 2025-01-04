@@ -195,7 +195,7 @@ EOL
     python manage.py startapp authentication"
 
   # Wait a moment to ensure files are created
-  sleep 1
+  sleep 10
 
   # Create Django settings
   echo "Creating Django settings..."
