@@ -31,6 +31,7 @@ PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
 SUPPORT_DIR="${PROJECT_DIR}/support"
 MAIN_DIR="${PROJECT_DIR}/main"
 DJANGO_DIR="${PROJECT_DIR}/django_auth"
+ROOT_DIR="$HOME/.root_dir"
 
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
@@ -84,9 +85,9 @@ init() {
     "$SUPPORT_DIR" \
     "$MAIN_DIR" \
     "$DJANGO_DIR" \
+    "$ROOT_DIR" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
-    "$SUPPORT_DIR/.root" \
     "$SUPPORT_DIR/pgadmin" \
     "$SUPPORT_DIR/logs"; do
     if [ ! -d "$dir" ]; then
@@ -106,7 +107,6 @@ init() {
 support/db_data/
 support/redis_data/
 support/pgadmin/
-support/.root/
 support/token
 support/venv/
 support/*.log
@@ -621,7 +621,6 @@ run_uvicorn() {
   podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -v "$MAIN_DIR/media:/app/main/media:z" \
-    -v "$SUPPORT_DIR/logs:/app/support/logs:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
     -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
     -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
@@ -635,7 +634,7 @@ run_uvicorn() {
 run_interact() {
   echo "Starting interactive container..."
   podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
-    -v "$SUPPORT_DIR/.root:/root:z" \
+    -v "$ROOT_DIR:/root:z" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
     "$PYTHON_IMAGE" bash -c "sleep infinity"
@@ -650,14 +649,28 @@ pg() {
     -v "$SUPPORT_DIR/pgadmin:/var/lib/pgadmin:z" \
     "$PGADMIN_IMAGE"
 }
-
 db() {
   echo "Running database migrations..."
+  
+  # Run Alembic migrations
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/support \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && alembic revision --autogenerate -m 'initial' && alembic upgrade head"
+
+  # Run Django migrations
+  podman run -it --rm --pod "$POD_NAME" \
+    -v "$PROJECT_DIR:/app:z" \
+    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+    -e "POSTGRES_USER=$POSTGRES_USER" \
+    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+    -e "POSTGRES_DB=$POSTGRES_DB" \
+    -w /app/django_auth \
+    "$PYTHON_IMAGE" bash -c \
+    "source /app/support/venv/bin/activate && python manage.py makemigrations && python manage.py migrate"
+
+  echo "Database migrations completed."
 }
 
 pod_create() {
@@ -690,6 +703,8 @@ esse() {
 start() {
   pod_create
   esse
+  sleep 10
+  db
 }
 
 cek() {
