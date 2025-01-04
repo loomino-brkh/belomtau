@@ -88,9 +88,7 @@ init() {
     "$SUPPORT_DIR/redis_data" \
     "$SUPPORT_DIR/.root" \
     "$SUPPORT_DIR/pgadmin" \
-    "$MAIN_DIR/staticfiles" \
     "$MAIN_DIR/media" \
-    "$MAIN_DIR/frontend" \
     "$SUPPORT_DIR/logs"; do
     if [ ! -d "$dir" ]; then
       mkdir -p "$dir"
@@ -116,6 +114,7 @@ support/*.log
 main/media/*
 main/staticfiles/*
 main/frontend/*
+django_auth/static/*
 
 # Python
 __pycache__/
