@@ -386,16 +386,11 @@ EOF
 # Collect static files
 python manage.py collectstatic --noinput
 
-# Get CPU count for workers
-CPU_COUNT=\$(nproc)
-WORKERS=\$((CPU_COUNT * 2 + 1))
-THREADS=\$CPU_COUNT
-
 # Run with gunicorn
 exec gunicorn auth_project.wsgi:application \
     --bind 0.0.0.0:8001 \
-    --workers \$WORKERS \
-    --threads \$THREADS \
+    --workers 2 \
+    --threads 2 \
     --worker-class gthread \
     --worker-tmp-dir /dev/shm \
     --access-logfile /app/support/logs/gunicorn-access.log \
