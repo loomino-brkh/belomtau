@@ -5,6 +5,8 @@ PORT1="8080"  # Nginx port
 PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
+# Generate a random secret key
+RANDOM_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
 # Check if command argument is provided
 if [ -z "$1" ]; then
     echo "Error: Command argument is required"
@@ -327,7 +329,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    
+
     user = authenticate(username=username, password=password)
     if user:
         refresh = RefreshToken.for_user(user)
@@ -432,7 +434,7 @@ async def startup():
     try:
         # Create database tables
         SQLModel.metadata.create_all(engine)
-        
+
         # Initialize Redis using container name
         redis = aioredis.from_url(f"redis://{os.getenv('REDIS_CONTAINER_NAME', 'localhost')}:6379", encoding="utf8", decode_responses=True)
         await FastAPILimiter.init(redis)
@@ -444,7 +446,7 @@ async def startup():
 async def verify_token(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="No token provided")
-    
+
     try:
         response = requests.post(
             f"http://{os.getenv('DJANGO_CONTAINER_NAME')}:8001/auth/verify/",
@@ -566,7 +568,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-    
+
     location /auth/static/ {
         alias /www/django_auth/staticfiles/;
     }
@@ -579,20 +581,21 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
-echo "Initializing Alembic..."
-podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
-  source /app/support/venv/bin/activate && \
-  cd /app/support && \
-  pip install alembic && \
-  alembic init migrations"
+EOL
 
-# Update alembic.ini
-ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
-sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
+  echo "Initializing Alembic..."
+  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
+    source /app/support/venv/bin/activate && \
+    cd /app/support && \
+    pip install alembic && \
+    alembic init migrations"
 
-# Update env.py
-cat <<EOT >> "$SUPPORT_DIR/migrations/env.py"
+  # Update alembic.ini
+  ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
+  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
 
+  # Update env.py
+  cat <<EOT >> "$SUPPORT_DIR/migrations/env.py"
 # Add SQLModel support
 import sys
 import os
@@ -600,6 +603,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from main.schemas import Todo
 target_metadata = Todo.metadata
 EOT
+}
 
 stop() {
   echo "Stopping and removing pod..."
@@ -637,7 +641,7 @@ run_cfl_tunnel() {
     echo "Error: Cloudflare tunnel token is empty. Please add your token to $SUPPORT_DIR/token"
     return 1
   fi
-  
+
   echo "Starting Cloudflare tunnel..."
   podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
     docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
@@ -679,7 +683,7 @@ pg() {
 
 db() {
   echo "Running database migrations..."
-  
+
   # Run Alembic migrations
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
