@@ -6,7 +6,7 @@ PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
 # Generate a random secret key
-RANDOM_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+RANDOM_KEY=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 # Check if command argument is provided
 if [ -z "$1" ]; then
     echo "Error: Command argument is required"
