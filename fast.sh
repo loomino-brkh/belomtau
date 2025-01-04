@@ -169,6 +169,7 @@ fastapi-cache2
 python-dotenv
 alembic
 Pillow
+PyYAML
 EOL
 
   rev
