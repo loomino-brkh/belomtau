@@ -579,27 +579,16 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
-echo "Initializing Alembic..."
-podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
-  source /app/support/venv/bin/activate && \
-  cd /app/support && \
-  pip install alembic && \
-  alembic init migrations"
+EOL
 
-# Update alembic.ini
-ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
-sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
-
-# Update env.py
-cat <<EOT >> "$SUPPORT_DIR/migrations/env.py"
-
-# Add SQLModel support
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from main.schemas import Todo
-target_metadata = Todo.metadata
-EOT
+  echo "Initializing Alembic..."
+  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
+    source /app/support/venv/bin/activate && \
+    cd /app/support && \
+    pip install alembic && \
+    alembic init migrations"
+  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
+}
 
 stop() {
   echo "Stopping and removing pod..."
