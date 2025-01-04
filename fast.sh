@@ -61,7 +61,7 @@ SCHEMAS_FILE="${MAIN_DIR}/schemas.py"
 
 rev() {
   echo "Creating Python virtual environment and installing requirements..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" -v "$SUPPORT_DIR/.root:/root:z" "$PYTHON_IMAGE" bash -c "
+  podman run --rm -v "$PROJECT_DIR:/app:z" -v "$ROOT_DIR:/root:z" "$PYTHON_IMAGE" bash -c "
     apt-get update && \
     apt-get install -y curl build-essential && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
