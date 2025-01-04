@@ -280,7 +280,22 @@ EOL
 #!/bin/bash
 source /app/support/venv/bin/activate
 cd /app/main
-exec uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Create log directory if it doesn't exist
+mkdir -p /app/support/logs
+
+# Run uvicorn with verbose logging
+exec uvicorn main:app \
+  --reload \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --log-level debug \
+  --access-log \
+  --use-colors \
+  --workers 1 \
+  --reload-dir /app/main \
+  --reload-dir /app/support \
+  --log-config /app/support/log_config.yaml
 EOL
 
   chmod 755 "$SUPPORT_DIR/uvicorn.sh"
