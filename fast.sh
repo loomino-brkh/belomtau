@@ -256,7 +256,10 @@ server {
 EOL
 
   echo "Initializing Alembic..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "source /app/venv/bin/activate && alembic init migrations"
+  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
+    source /app/venv/bin/activate && \
+    pip install alembic && \
+    alembic init migrations"
   sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}|g" "$PROJECT_DIR/alembic.ini"
 }
 
