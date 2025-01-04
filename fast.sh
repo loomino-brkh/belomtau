@@ -77,19 +77,33 @@ init() {
   fi
 
   echo "Creating project directories..."
-  [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
-  [ ! -d "$SUPPORT_DIR" ] && mkdir -p "$SUPPORT_DIR"
-  [ ! -d "$MAIN_DIR" ] && mkdir -p "$MAIN_DIR"
-  [ ! -d "$DJANGO_DIR" ] && mkdir -p "$DJANGO_DIR"
-  [ ! -d "$SUPPORT_DIR/db_data" ] && mkdir -p "$SUPPORT_DIR/db_data"
-  [ ! -d "$SUPPORT_DIR/redis_data" ] && mkdir -p "$SUPPORT_DIR/redis_data"
-  [ ! -d "$SUPPORT_DIR/.root" ] && mkdir -p "$SUPPORT_DIR/.root"
+  # Define DJANGO_DIR
+  DJANGO_DIR="${PROJECT_DIR}/django_auth"
+
+  # Create all required directories
+  for dir in \
+    "$PROJECT_DIR" \
+    "$SUPPORT_DIR" \
+    "$MAIN_DIR" \
+    "$DJANGO_DIR" \
+    "$SUPPORT_DIR/db_data" \
+    "$SUPPORT_DIR/redis_data" \
+    "$SUPPORT_DIR/.root" \
+    "$SUPPORT_DIR/pgadmin" \
+    "$MAIN_DIR/staticfiles" \
+    "$MAIN_DIR/media" \
+    "$MAIN_DIR/frontend" \
+    "$SUPPORT_DIR/logs"; do
+    if [ ! -d "$dir" ]; then
+      mkdir -p "$dir"
+    fi
+  done
+
+  # Create token file if it doesn't exist
   [ ! -f "$SUPPORT_DIR/token" ] && touch "$SUPPORT_DIR/token"
-  [ ! -d "$SUPPORT_DIR/pgadmin" ] && mkdir -p "$SUPPORT_DIR/pgadmin" && chmod 777 "$SUPPORT_DIR/pgadmin"
-  [ ! -d "$MAIN_DIR/staticfiles" ] && mkdir -p "$MAIN_DIR/staticfiles"
-  [ ! -d "$MAIN_DIR/media" ] && mkdir -p "$MAIN_DIR/media"
-  [ ! -d "$MAIN_DIR/frontend" ] && mkdir -p "$MAIN_DIR/frontend"
-  [ ! -d "$SUPPORT_DIR/logs" ] && mkdir -p "$SUPPORT_DIR/logs"
+
+  # Set permissions for pgadmin directory
+  chmod 777 "$SUPPORT_DIR/pgadmin"
 
   echo "Creating .gitignore..."
   cat >"$PROJECT_DIR/.gitignore" <<EOL
