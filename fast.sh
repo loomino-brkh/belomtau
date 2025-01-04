@@ -52,7 +52,7 @@ init() {
   cat >"$REQUIREMENTS_FILE" <<EOL
 fastapi
 uvicorn
-sqlalchemy
+sqlmodel
 pydantic[email]
 psycopg2-binary
 python-jose[cryptography]
@@ -76,6 +76,8 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_limiter import FastAPILimiter
 from redis import asyncio as aioredis
+from sqlmodel import SQLModel
+from db import engine
 import uvicorn
 
 app = FastAPI()
@@ -93,6 +95,10 @@ app.mount("/media", StaticFiles(directory="media"), name="media")
 
 @app.on_event("startup")
 async def startup():
+    # Create database tables
+    SQLModel.metadata.create_all(engine)
+    
+    # Initialize Redis
     redis = aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
     await FastAPILimiter.init(redis)
     FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
@@ -106,36 +112,47 @@ if __name__ == "__main__":
 EOL
 
   cat >"$DB_FILE" <<EOL
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel, create_engine, Session
+from typing import Generator
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def get_db() -> Generator[Session, None, None]:
+    with Session(engine) as session:
+        yield session
 EOL
 
   cat >"$SCHEMAS_FILE" <<EOL
-from pydantic import BaseModel
+from sqlmodel import SQLModel, Field
+from typing import Optional
+from datetime import datetime
 
-# Add your Pydantic models here
+# Example model
+class UserBase(SQLModel):
+    email: str = Field(unique=True, index=True)
+    username: str = Field(unique=True, index=True)
+    full_name: str
+    disabled: bool = False
+
+class User(UserBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    hashed_password: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserCreate(UserBase):
+    password: str
+
+class UserRead(UserBase):
+    id: int
+    created_at: datetime
 EOL
 
   cat >"$MODELS_FILE" <<EOL
-from sqlalchemy import Column, Integer, String
-from db import Base
-
-# Add your SQLAlchemy models here
+# This file can be removed since SQLModel combines 
+# Pydantic and SQLAlchemy models in schemas.py
 EOL
 
   cat >"$PROJECT_DIR/uvicorn.sh" <<EOL
