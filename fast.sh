@@ -86,6 +86,73 @@ init() {
   [ ! -d "$MAIN_DIR/media" ] && mkdir -p "$MAIN_DIR/media"
   [ ! -d "$MAIN_DIR/frontend" ] && mkdir -p "$MAIN_DIR/frontend"
 
+  echo "Creating .gitignore..."
+  cat >"$PROJECT_DIR/.gitignore" <<EOL
+# Project specific
+support/db_data/
+support/redis_data/
+support/pgadmin/
+support/.root/
+support/token
+support/venv/
+support/*.log
+main/media/*
+main/staticfiles/*
+main/frontend/*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+log/
+logs/
+
+# Database
+*.sqlite3
+*.db
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Alembic
+versions/
+EOL
+
   echo "Creating requirements.txt..."
   cat >"$REQUIREMENTS_FILE" <<EOL
 fastapi
