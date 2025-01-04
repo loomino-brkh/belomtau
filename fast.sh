@@ -2,7 +2,6 @@
 # ---- Configuration -------
 HOST_DOMAIN="dev.var.my.id"
 PORT1="8080"
-PORT2="9080"
 
 # Check if command argument is provided
 if [ -z "$1" ]; then
@@ -79,9 +78,6 @@ init() {
   [ ! -d "$PROJECT_DIR/.root" ] && mkdir -p "$PROJECT_DIR/.root"
   [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
   [ ! -d "$PROJECT_DIR/pgadmin" ] && mkdir -p "$PROJECT_DIR/pgadmin" && chmod 777 "$PROJECT_DIR/pgadmin"
-  [ ! -d "$PROJECT_DIR/frontend" ] && mkdir -p "$PROJECT_DIR/frontend"
-  [ ! -d "$PROJECT_DIR/staticfiles" ] && mkdir -p "$PROJECT_DIR/staticfiles"
-  [ ! -d "$PROJECT_DIR/media" ] && mkdir -p "$PROJECT_DIR/media"
 
   echo "Creating requirements.txt..."
   cat >"$REQUIREMENTS_FILE" <<EOL
@@ -228,30 +224,6 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/api/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    location /static/ {
-        alias /www/staticfiles/;
-    }
-
-    location /media/ {
-        alias /www/media/;
-    }
-}
-
-server {
-    listen $PORT2;
-    server_name 127.0.0.1;
-
-    location / {
-        alias /www/frontend/;
-    }
 }
 EOL
 
