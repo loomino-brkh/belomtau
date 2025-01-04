@@ -181,6 +181,7 @@ django-cors-headers
 django-environ
 djangorestframework-simplejwt
 requests
+gunicorn
 EOL
 
   rev
@@ -191,7 +192,8 @@ EOL
     source /app/support/venv/bin/activate && \
     cd /app/django_auth && \
     django-admin startproject auth_project . && \
-    python manage.py startapp authentication"
+    python manage.py startapp authentication && \
+    mkdir -p auth_project"
 
   # Create Django settings
   echo "Creating Django settings..."
@@ -364,8 +366,21 @@ if not User.objects.filter(username='admin').exists():
     User.objects.create_superuser('admin', 'admin@example.com', 'admin')
 EOF
 
-# Run Django development server
-exec python manage.py runserver 0.0.0.0:8001
+# Collect static files
+python manage.py collectstatic --noinput
+
+# Run with gunicorn
+exec gunicorn auth_project.wsgi:application \
+    --bind 0.0.0.0:8001 \
+    --workers 4 \
+    --threads 4 \
+    --worker-class gthread \
+    --worker-tmp-dir /dev/shm \
+    --access-logfile /app/support/logs/gunicorn-access.log \
+    --error-logfile /app/support/logs/gunicorn-error.log \
+    --capture-output \
+    --enable-stdio-inheritance \
+    --reload
 EOL
 
   chmod 755 "$DJANGO_DIR/run.sh"
