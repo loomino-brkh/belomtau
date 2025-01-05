@@ -86,8 +86,8 @@ init() {
     "$PROJECT_DIR" \
     "$SUPPORT_DIR" \
     "$MAIN_DIR" \
-    "$DJANGO_DIR" \
     "$ROOT_DIR" \
+    "$DJANGO_DIR" \
     "$DJANGO_DIR/static" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
