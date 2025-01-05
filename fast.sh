@@ -313,7 +313,27 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
+echo "Creating Django settings..."
+cat >"$DJANGO_DIR/auth_project/settings.py" <<EOL
+import os
+from pathlib import Path
+from datetime import timedelta
 
+# ... (keep the existing content)
+
+# Add this new section for caching
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://{os.getenv('REDIS_CONTAINER_NAME', 'localhost')}:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+# ... (keep the rest of the existing content)
+EOL
 CORS_ALLOW_ALL_ORIGINS = True
 EOL
 
