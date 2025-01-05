@@ -387,6 +387,19 @@ urlpatterns = [
 ]
 EOL
 
+
+  echo "Creating Django URLs..."
+  cat >"$DJANGO_DIR/authentication/urls.py" <<EOL
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('login/', views.login, name='login'),
+    path('verify/', views.verify_token, name='verify'),
+    path('cached/', views.cached_view, name='cached_view'),
+]
+EOL
+
   echo "Creating Django run script..."
   cat >"$DJANGO_DIR/run.sh" <<EOL
 #!/bin/bash
@@ -423,17 +436,6 @@ exec gunicorn auth_project.wsgi:application \
 EOL
 
   chmod 755 "$DJANGO_DIR/run.sh"
-echo "Creating Django URLs..."
-cat >"$DJANGO_DIR/authentication/urls.py" <<EOL
-from django.urls import path
-from . import views
-
-urlpatterns = [
-    path('login/', views.login, name='login'),
-    path('verify/', views.verify_token, name='verify'),
-    path('cached/', views.cached_view, name='cached_view'),
-]
-EOL
 
   echo "Creating main.py..."
   cat >"$MAIN_FILE" <<EOL
