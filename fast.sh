@@ -88,6 +88,7 @@ init() {
     "$MAIN_DIR" \
     "$DJANGO_DIR" \
     "$ROOT_DIR" \
+    "$DJANGO_DIR/static" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
     "$SUPPORT_DIR/pgadmin"; do
