@@ -90,8 +90,7 @@ init() {
     "$ROOT_DIR" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
-    "$SUPPORT_DIR/pgadmin" \
-    "$SUPPORT_DIR/logs"; do
+    "$SUPPORT_DIR/pgadmin"; do
     if [ ! -d "$dir" ]; then
       mkdir -p "$dir"
     fi
