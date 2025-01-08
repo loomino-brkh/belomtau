@@ -764,7 +764,7 @@ run_django() {
 
 wait_for_django() {
   echo "Waiting for Django to be ready..."
-  for i in {1..30}; do
+  for i in {1..60}; do
     if podman exec -it "$DJANGO_CONTAINER_NAME" curl -s http://127.0.0.1:8001/auth/login/ &>/dev/null; then
       echo "Django is ready."
       return 0
