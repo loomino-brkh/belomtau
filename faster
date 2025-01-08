@@ -757,14 +757,24 @@ db() {
   # Wait a bit for Django migrations to complete
   sleep 5
 
-  # Run Alembic migrations for FastAPI
+  # Run Alembic migrations for FastAPI with proper error handling
   echo "Running FastAPI/Alembic migrations..."
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/support \
+    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+    -e "POSTGRES_USER=$POSTGRES_USER" \
+    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+    -e "POSTGRES_DB=$POSTGRES_DB" \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
+     # Remove existing versions if any
+     rm -rf migrations/versions/* && \
+     # Create a new initial migration
      alembic revision --autogenerate -m 'initial' && \
+     # Stamp the database with current head
+     alembic stamp head && \
+     # Apply migrations
      alembic upgrade head"
 
   echo "Database migrations completed."
