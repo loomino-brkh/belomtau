@@ -633,17 +633,71 @@ EOL
   ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
   sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$SUPPORT_DIR/alembic.ini"
 
-  # Update env.py
-  cat <<EOT >> "$SUPPORT_DIR/migrations/env.py"
-# Add SQLModel support
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from sqlmodel import SQLModel
-from main.schemas import Todo  # Import all models here
+  # Update env.py with correct imports and configuration
+  cat >"$SUPPORT_DIR/migrations/env.py" <<EOT
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+from alembic import context
+import os, sys
+from pathlib import Path
 
-# ...existing code...
+# Add the project directory to Python path
+sys.path.append(str(Path(__file__).parents[2]))
+
+# Import models
+from main.schemas import *
+from sqlmodel import SQLModel
+
+# this is the Alembic Config object
+config = context.config
+
+# Interpret the config file for Python logging
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# Set SQLModel metadata
 target_metadata = SQLModel.metadata
+
+def get_url():
+    return f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_CONTAINER_NAME')}:5432/{os.getenv('POSTGRES_DB')}"
+
+def run_migrations_offline() -> None:
+    url = get_url()
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+def run_migrations_online() -> None:
+    configuration = config.get_section(config.config_ini_section)
+    if configuration is not None:
+        configuration["sqlalchemy.url"] = get_url()
+    
+    connectable = engine_from_config(
+        configuration or {},
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
 EOT
 }
 
@@ -740,6 +794,12 @@ pg() {
 db() {
   echo "Running database migrations..."
 
+  # Export environment variables that will be needed by Alembic
+  export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
+  export POSTGRES_USER="$POSTGRES_USER"
+  export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+  export POSTGRES_DB="$POSTGRES_DB"
+
   # Run Django migrations first
   echo "Running Django migrations..."
   podman run -it --rm --pod "$POD_NAME" \
@@ -766,15 +826,11 @@ db() {
     -e "POSTGRES_USER=$POSTGRES_USER" \
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
     -e "POSTGRES_DB=$POSTGRES_DB" \
+    -e "PYTHONPATH=/app" \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
-     # Remove existing versions if any
      rm -rf migrations/versions/* && \
-     # Create a new initial migration
      alembic revision --autogenerate -m 'initial' && \
-     # Stamp the database with current head
-     alembic stamp head && \
-     # Apply migrations
      alembic upgrade head"
 
   echo "Database migrations completed."
