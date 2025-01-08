@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$(dirname "$0")/../config/config.sh"
+# Get base directory (parent of scripts)
 
 # ---- Pod Management -------
 pod_create() {
