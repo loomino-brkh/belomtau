@@ -740,14 +740,8 @@ pg() {
 db() {
   echo "Running database migrations..."
 
-  # Run Alembic migrations
-  podman run -it --rm --pod "$POD_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -w /app/support \
-    "$PYTHON_IMAGE" bash -c \
-    "source /app/support/venv/bin/activate && alembic revision --autogenerate -m 'initial' && alembic upgrade head"
-
-  # Run Django migrations
+  # Run Django migrations first
+  echo "Running Django migrations..."
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
@@ -756,7 +750,22 @@ db() {
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -w /app/django_auth \
     "$PYTHON_IMAGE" bash -c \
-    "source /app/support/venv/bin/activate && python manage.py makemigrations && python manage.py migrate"
+    "source /app/support/venv/bin/activate && \
+     python manage.py makemigrations && \
+     python manage.py migrate"
+
+  # Wait a bit for Django migrations to complete
+  sleep 5
+
+  # Run Alembic migrations for FastAPI
+  echo "Running FastAPI/Alembic migrations..."
+  podman run -it --rm --pod "$POD_NAME" \
+    -v "$PROJECT_DIR:/app:z" \
+    -w /app/support \
+    "$PYTHON_IMAGE" bash -c \
+    "source /app/support/venv/bin/activate && \
+     alembic revision --autogenerate -m 'initial' && \
+     alembic upgrade head"
 
   echo "Database migrations completed."
 }
