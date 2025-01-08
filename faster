@@ -911,5 +911,12 @@ cek() {
   fi
 }
 
-# Execute the command
-$COMMAND
+# Check if the command exists as a function
+if [ "$(type -t "$COMMAND")" = "function" ]; then
+				# Execute the command
+				$COMMAND
+else
+				echo "Error: Unknown command '$COMMAND'"
+				echo "Available commands: init, start, stop, db, pg, cek"
+				exit 1
+fi
