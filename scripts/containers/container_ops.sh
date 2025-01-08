@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # Get base directory (parent of scripts)
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$BASE_DIR/scripts"
+
+# Source config with absolute path
+source "$SCRIPT_DIR/config/config.sh"
 
 # ---- Pod Management -------
 pod_create() {
