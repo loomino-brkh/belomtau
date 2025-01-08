@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Source all required scripts
-SCRIPT_DIR="$(dirname "$0")"
+# Get base directory (parent of scripts)
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$BASE_DIR/scripts"
+
+# Source all required scripts with absolute paths
 source "$SCRIPT_DIR/config/config.sh"
 source "$SCRIPT_DIR/containers/container_ops.sh"
 source "$SCRIPT_DIR/templates/base_templates.sh"
