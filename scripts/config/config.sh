@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Handle case when APP_NAME is not set yet
+if [ -z "$APP_NAME" ]; then
+    APP_NAME="default"
+fi
+
 # ---- Host Configuration -------
 HOST_DOMAIN="api.var.my.id"
 PORT1="8080"  # Nginx port
