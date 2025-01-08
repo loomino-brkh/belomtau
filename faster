@@ -660,6 +660,19 @@ run_postgres() {
     "$POSTGRES_IMAGE"
 }
 
+wait_for_postgres() {
+  echo "Waiting for PostgreSQL container..."
+  for i in {1..30}; do
+    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+      echo "PostgreSQL is ready."
+      return 0
+    fi
+    sleep 2
+  done
+  echo "PostgreSQL did not become ready in time."
+  exit 1
+}
+
 run_redis() {
   echo "Starting Redis container..."
   podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
@@ -777,6 +790,7 @@ wait_for_django() {
 
 esse() {
   run_postgres || return 1
+  wait_for_postgres
   run_redis || return 1
   run_django || return 1
   wait_for_django
