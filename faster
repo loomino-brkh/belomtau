@@ -642,11 +642,13 @@ from alembic import context
 import os, sys
 from pathlib import Path
 
-# Add the project directory to Python path
-sys.path.append(str(Path(__file__).parents[2]))
+# Add the main directory to Python path
+project_root = str(Path(__file__).parents[2])
+main_path = os.path.join(project_root, 'main')
+sys.path.append(main_path)
 
-# Import models
-from main.schemas import *
+# Import models and SQLModel
+from schemas import Todo
 from sqlmodel import SQLModel
 
 # this is the Alembic Config object
