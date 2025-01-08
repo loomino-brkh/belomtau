@@ -91,7 +91,8 @@ init() {
     "$DJANGO_DIR/static" \
     "$SUPPORT_DIR/db_data" \
     "$SUPPORT_DIR/redis_data" \
-    "$SUPPORT_DIR/pgadmin"; do
+    "$SUPPORT_DIR/pgadmin" \
+    "$SUPPORT_DIR/logs"; do
     if [ ! -d "$dir" ]; then
       mkdir -p "$dir"
     fi
