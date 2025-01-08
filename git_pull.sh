@@ -17,10 +17,17 @@ if git diff --quiet HEAD @{u}; then
     exit 0
 else
     echo "Changes detected, pulling updates in: $REPO_DIR"
-    git reset --hard @{u}
-    git clean -fd
+    # Stash any uncommitted changes to tracked files
+    git stash -q
+    
+    # Pull changes from remote
     if ! git pull --ff-only; then
+        # Restore stashed changes if pull fails
+        git stash pop -q 2>/dev/null
         echo "Pull failed in: $REPO_DIR"
         exit 1
     fi
+    
+    # Try to restore stashed changes, ignore if stash was empty
+    git stash pop -q 2>/dev/null || true
 fi
