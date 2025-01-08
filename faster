@@ -826,12 +826,12 @@ db() {
     -e "POSTGRES_USER=$POSTGRES_USER" \
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
     -e "POSTGRES_DB=$POSTGRES_DB" \
-    -e "PYTHONPATH=/app" \
+    -e "PYTHONPATH=/app/main" \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
-     rm -rf migrations/versions/* && \
-     alembic revision --autogenerate -m 'initial' && \
-     alembic upgrade head"
+     python -c 'from schemas import Todo' && \
+     alembic revision --autogenerate -m 'initial' || exit 1 && \
+     alembic upgrade head || exit 1"
 
   echo "Database migrations completed."
 }
