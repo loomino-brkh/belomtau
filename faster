@@ -667,35 +667,46 @@ todo_table = Table(
 target_metadata = metadata
 
 def get_url():
-    return f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_CONTAINER_NAME')}:5432/{os.getenv('POSTGRES_DB')}"
+    """Get database URL from environment variables."""
+				user = os.getenv('POSTGRES_USER')
+				password = os.getenv('POSTGRES_PASSWORD')
+    host = os.getenv('POSTGRES_CONTAINER_NAME')
+    db = os.getenv('POSTGRES_DB')
+    return f"postgresql://{user}:{password}@{host}:5432/{db}"
 
 def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
     url = get_url()
-    context.configure(
+				context.configure(
         url=url,
         target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
+								literal_binds=True,
+								dialect_opts={"paramstyle": "named"},
+        compare_type=True,  # Added to detect column type changes
+        compare_server_default=True,  # Added to detect default value changes
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 def run_migrations_online() -> None:
-    configuration = config.get_section(config.config_ini_section)
+    """Run migrations in 'online' mode."""
+				configuration = config.get_section(config.config_ini_section)
     if configuration is not None:
         configuration["sqlalchemy.url"] = get_url()
     
     connectable = engine_from_config(
         configuration or {},
-        prefix="sqlalchemy.",
+								prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata
+            target_metadata=target_metadata,
+            compare_type=True,  # Added to detect column type changes
+            compare_server_default=True,  # Added to detect default value changes
         )
 
         with context.begin_transaction():
