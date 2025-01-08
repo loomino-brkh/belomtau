@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
+# Get the directory where this script is located and resolve to scripts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$SCRIPT_DIR/scripts"
 
 # Execute the main script with all arguments
 exec "$SCRIPT_DIR/main.sh" "$@"
