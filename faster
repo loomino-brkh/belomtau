@@ -550,7 +550,7 @@ from typing import Optional
 from datetime import datetime
 
 class TodoBase(SQLModel):
-    title: str
+    title: str = Field(..., min_length=1)
     description: Optional[str] = None
     completed: bool = False
 
@@ -566,6 +566,11 @@ class TodoRead(TodoBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+class TodoUpdate(SQLModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    completed: Optional[bool] = None
 EOL
 
   echo "Creating uvicorn.sh..."
@@ -633,8 +638,9 @@ EOL
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from main.schemas import Todo
-target_metadata = Todo.metadata
+from sqlmodel import SQLModel
+# ...existing code...
+target_metadata = SQLModel.metadata
 EOT
 }
 
@@ -756,10 +762,24 @@ run_django() {
     "$PYTHON_IMAGE" ./django_auth/run.sh
 }
 
+wait_for_django() {
+  echo "Waiting for Django to be ready..."
+  for i in {1..30}; do
+    if podman exec -it "$DJANGO_CONTAINER_NAME" curl -s http://127.0.0.1:8001/auth/login/ &>/dev/null; then
+      echo "Django is ready."
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Django did not become ready in time."
+  exit 1
+}
+
 esse() {
   run_postgres || return 1
   run_redis || return 1
   run_django || return 1
+  wait_for_django
   run_uvicorn || return 1
   run_nginx || return 1
   run_cfl_tunnel || return 1
