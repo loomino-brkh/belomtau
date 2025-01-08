@@ -1,7 +1,7 @@
 #!/bin/bash
+
 # ---- Configuration -------
-HOST_DOMAIN="api.var.my.id"
-PORT1="8080"  # Nginx port
+readonly HOST_DOMAIN="api.var.my.id"
 PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
