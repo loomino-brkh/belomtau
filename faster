@@ -864,8 +864,15 @@ db() {
     "source /app/support/venv/bin/activate && \
      mkdir -p migrations/versions && \
      python -c 'from schemas import Todo' && \
-     alembic revision --autogenerate -m 'initial' && \
-     alembic upgrade head"
+     if [ ! \"\$(ls -A migrations/versions/)\" ]; then \
+       echo 'Creating initial migration...' && \
+       alembic revision --autogenerate -m 'initial' && \
+       alembic upgrade head; \
+     else \
+       echo 'Migrations already exist, checking for changes...' && \
+       alembic revision --autogenerate -m \"update_\$(date +%Y%m%d_%H%M%S)\" && \
+       alembic upgrade head; \
+     fi"
 
   echo "Database migrations completed."
 }
