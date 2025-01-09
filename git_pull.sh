@@ -24,11 +24,11 @@ echo "Changes detected, syncing with remote in: $REPO_DIR"
 git stash -q
 
 # Save a list of files being tracked by git
-tracked_files=$(git ls-tree -r HEAD --name-only)
-
-# Get a list of files and directories that are ignored by .gitignore
-# Use -z to handle filenames with spaces and special characters
-ignored_items=$(git status --ignored --porcelain -z | grep -z '^!!' | cut -c4- | tr '\0' '\n')
+# Get list of tracked files, handle potential errors
+tracked_files=$(git ls-tree -r HEAD --name-only) || {
+				echo "Error: Failed to get list of tracked files"
+				exit 1
+}
 
 # Create a temporary directory for backup
 backup_dir=".git/backup_ignored"
