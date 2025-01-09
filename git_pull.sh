@@ -30,18 +30,41 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
   exit 1
 fi
 
+# Get remote name first
+remote_name=$(git remote)
+if [ -z "$remote_name" ]; then
+  echo "No remote configured for: $REPO_DIR"
+  exit 1
+fi
+
+# Get current branch name, default to master/main if no commits exist
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
+
 # Fetch from remote silently
 git fetch &>/dev/null
 
-# Check if there are any changes to pull
+# Check if we have any commits
+has_commits=false
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    if git diff --quiet HEAD @{u}; then
-        echo "No changes detected in: $REPO_DIR"
-        exit 0
-    fi
+  has_commits=true
+fi
+
+# Set upstream branch if not configured
+if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
+  git branch --set-upstream-to="$remote_name/$current_branch" "$current_branch" || {
+    echo "Failed to set upstream branch. Please check remote branch exists."
+    exit 1
+  }
+fi
+
+# For repositories with commits, check if there are changes to pull
+if [ "$has_commits" = true ]; then
+  if git diff --quiet HEAD @{u}; then
+    echo "No changes detected in: $REPO_DIR"
+    exit 0
+  fi
 else
-    # If no commits exist yet, continue with pull to get initial content
-    echo "No commits yet, pulling initial content from remote"
+  echo "No commits yet, pulling initial content from remote"
 fi
 
 echo "Changes detected, syncing with remote in: $REPO_DIR"
@@ -50,13 +73,9 @@ echo "Changes detected, syncing with remote in: $REPO_DIR"
 git stash -q
 
 # Save a list of files being tracked by git
-# Get list of tracked files, handle potential errors
 tracked_files=""
-if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    tracked_files=$(git ls-tree -r HEAD --name-only)
-else
-    # If HEAD doesn't exist (no commits yet), consider no files as tracked
-    tracked_files=""
+if [ "$has_commits" = true ]; then
+  tracked_files=$(git ls-tree -r HEAD --name-only)
 fi
 
 # Get a list of files and directories that are ignored by .gitignore
@@ -83,22 +102,6 @@ fi
 
 # Clean working directory, excluding ignored files
 git clean -fd
-
-# Set upstream branch if not configured
-current_branch=$(git rev-parse --abbrev-ref HEAD)
-if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
-  remote_name=$(git remote)
-  if [ -z "$remote_name" ]; then
-    echo "No remote configured for: $REPO_DIR"
-    # Restore ignored files before exit
-    if [ -d "$backup_dir" ]; then
-      cp -a "$backup_dir"/* . 2>/dev/null || true
-      rm -rf "$backup_dir"
-    fi
-    exit 1
-  fi
-  git branch --set-upstream-to="$remote_name/$current_branch" "$current_branch"
-fi
 
 # Pull changes from remote with auto conflict resolution favoring remote changes
 pull_output=$(git pull --strategy=recursive --strategy-option=theirs "$remote_name" "$current_branch" 2>&1)
