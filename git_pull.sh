@@ -71,12 +71,15 @@ fi
 # Try to restore stashed changes, ignore if stash was empty
 git stash pop -q 2>/dev/null || true
 
-# Final cleanup: Remove untracked files that aren't ignored
-git clean -fdn | grep 'Would remove' | cut -c14- | while read -r file; do
-    if ! echo "$tracked_files" | grep -q "^$file$" && \
-       ! echo "$ignored_files" | grep -q "^$file$"; then
-        rm -rf "$file"
-    fi
+# Final cleanup: Remove untracked files that aren't ignored or tracked
+git status --untracked-files=normal --porcelain | grep '^??' | cut -c4- | while IFS= read -r item; do
+    # Check if the item is tracked
+    if ! echo "$tracked_files" | grep -Fxq "$item"; then
+        # Check if the item is ignored by git
+        if ! git check-ignore -q "$item"; then
+												rm -rf "$item"
+								fi
+				fi
 done
 
 echo "Successfully synced with remote in: $REPO_DIR"
