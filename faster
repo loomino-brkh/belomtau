@@ -112,6 +112,7 @@ support/redis_data/
 support/pgadmin/
 support/token
 support/venv/
+support/logs/
 support/*.log
 django_auth/static/
 
