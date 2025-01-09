@@ -2,32 +2,32 @@
 
 # Check if git command is available
 if ! command -v git >/dev/null 2>&1; then
-		echo "Error: git is not installed or not in PATH"
+  echo "Error: git is not installed or not in PATH"
   exit 1
 fi
 
 REPO_DIR="$1"
 
 if [ -z "$REPO_DIR" ]; then
-		echo "Usage: $0 <repository_directory>"
-		exit 1
+  echo "Usage: $0 <repository_directory>"
+  exit 1
 fi
 
 # Check if directory exists and is a git repository
 if [ ! -d "$REPO_DIR" ]; then
-		echo "Error: Directory does not exist: $REPO_DIR"
-		exit 1
+  echo "Error: Directory does not exist: $REPO_DIR"
+  exit 1
 fi
 
 cd "$REPO_DIR" || {
-		echo "Error: Failed to change to directory: $REPO_DIR"
-		exit 1
+  echo "Error: Failed to change to directory: $REPO_DIR"
+  exit 1
 }
 
 # Verify it's a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
-		echo "Error: Not a git repository: $REPO_DIR"
-		exit 1
+  echo "Error: Not a git repository: $REPO_DIR"
+  exit 1
 fi
 
 # Fetch from remote silently
@@ -82,10 +82,10 @@ if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
   remote_name=$(git remote)
   if [ -z "$remote_name" ]; then
     echo "No remote configured for: $REPO_DIR"
-				# Restore ignored files before exit
-				if [ -d "$backup_dir" ]; then
-						cp -a "$backup_dir"/* . 2>/dev/null || true
-						rm -rf "$backup_dir"
+    # Restore ignored files before exit
+    if [ -d "$backup_dir" ]; then
+      cp -a "$backup_dir"/* . 2>/dev/null || true
+      rm -rf "$backup_dir"
     fi
     exit 1
   fi
@@ -98,18 +98,18 @@ pull_status=$?
 
 # Always restore ignored items from backup first
 if [ -d "$backup_dir" ]; then
-		# Use cp -a to preserve attributes and copy directories recursively
-		cp -a "$backup_dir"/* . 2>/dev/null || true
-		# Clean up backup directory
-		rm -rf "$backup_dir"
+  # Use cp -a to preserve attributes and copy directories recursively
+  cp -a "$backup_dir"/* . 2>/dev/null || true
+  # Clean up backup directory
+  rm -rf "$backup_dir"
 fi
 
 if [ $pull_status -ne 0 ]; then
-		# Restore stashed changes if pull fails
-		git stash pop -q 2>/dev/null
-		echo "Pull failed in: $REPO_DIR"
-		echo "Error: $pull_output"
-		exit 1
+  # Restore stashed changes if pull fails
+  git stash pop -q 2>/dev/null
+  echo "Pull failed in: $REPO_DIR"
+  echo "Error: $pull_output"
+  exit 1
 fi
 
 # Try to restore stashed changes, ignore if stash was empty
