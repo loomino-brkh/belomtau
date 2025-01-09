@@ -32,8 +32,8 @@ ignored_files=$(git status --ignored --porcelain | grep '^!!' | cut -c4-)
 # Create a temporary index to store current tracked files state
 git checkout-index -a --prefix=.git/tmp_workdir/
 
-# Clean working directory, but keep ignored files
-git clean -fdx
+# Clean working directory, excluding ignored files
+git clean -fd
 
 # Pull changes from remote
 if ! git pull --ff-only; then
