@@ -1,24 +1,24 @@
 #!/bin/bash
 
-REPO_DIR="$1"
-
-if [ -z "$REPO_DIR" ]; then
-  echo "Usage: $0 <repository_directory>"
+# Check if git command is available
+if ! command -v git >/dev/null 2>&1; then
+		echo "Error: git is not installed or not in PATH"
   exit 1
 fi
 
-cd "$REPO_DIR" || exit 1
+REPO_DIR="$1"
 
-# Fetch from remote silently
-git fetch &>/dev/null
-
-# Check if there are any changes to pull
-if git diff --quiet HEAD @{u}; then
-  echo "No changes detected in: $REPO_DIR"
-  exit 0
+if [ -z "$REPO_DIR" ]; then
+		echo "Usage: $0 <repository_directory>"
+		exit 1
 fi
 
-echo "Changes detected, syncing with remote in: $REPO_DIR"
+# Check if directory exists and is a git repository
+if [ ! -d "$REPO_DIR" ]; then
+		echo "Error: Directory does not exist: $REPO_DIR"
+		exit 1
+fi
+
 
 # Stash any uncommitted changes to tracked files
 git stash -q
