@@ -34,9 +34,14 @@ fi
 git fetch &>/dev/null
 
 # Check if there are any changes to pull
-if git diff --quiet HEAD @{u}; then
-  echo "No changes detected in: $REPO_DIR"
-  exit 0
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    if git diff --quiet HEAD @{u}; then
+        echo "No changes detected in: $REPO_DIR"
+        exit 0
+    fi
+else
+    # If no commits exist yet, continue with pull to get initial content
+    echo "No commits yet, pulling initial content from remote"
 fi
 
 echo "Changes detected, syncing with remote in: $REPO_DIR"
