@@ -101,7 +101,7 @@ if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
 fi
 
 # Pull changes from remote with auto conflict resolution favoring remote changes
-pull_output=$(git pull --strategy=recursive --strategy-option=theirs 2>&1)
+pull_output=$(git pull --strategy=recursive --strategy-option=theirs "$remote_name" "$current_branch" 2>&1)
 pull_status=$?
 
 # Always restore ignored items from backup first
