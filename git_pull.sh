@@ -59,18 +59,14 @@ if ! git pull --ff-only; then
     exit 1
 fi
 
-# Restore ignored files from the temporary working directory
-if [ -n "$ignored_files" ]; then
-    while IFS= read -r file; do
-        if [ -e ".git/tmp_workdir/$file" ]; then
-            mkdir -p "$(dirname "$file")"
-            cp -a ".git/tmp_workdir/$file" "$file"
-        fi
-    done <<< "$ignored_files"
+# Restore ignored items from backup
+if [ -d "$backup_dir" ]; then
+    # Use cp -a to preserve attributes and copy directories recursively
+    cp -a "$backup_dir"/* . 2>/dev/null || true
+    
+    # Clean up backup directory
+    rm -rf "$backup_dir"
 fi
-
-# Clean up temporary directory
-rm -rf .git/tmp_workdir
 
 # Try to restore stashed changes, ignore if stash was empty
 git stash pop -q 2>/dev/null || true
