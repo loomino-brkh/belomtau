@@ -845,6 +845,13 @@ db() {
 
   # Run Alembic migrations for FastAPI with proper error handling
   echo "Running FastAPI/Alembic migrations..."
+  # Ensure migrations directory exists and has correct permissions
+  podman run -it --rm --pod "$POD_NAME" \
+    -v "$PROJECT_DIR:/app:z" \
+    -w /app/main \
+    "$PYTHON_IMAGE" bash -c "mkdir -p /app/main/migrations/versions && chmod 777 /app/main/migrations/versions"
+    
+  # Run Alembic migrations with proper error handling and directory setup
   podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/main \
@@ -855,9 +862,10 @@ db() {
     -e "PYTHONPATH=/app/main" \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
+     mkdir -p migrations/versions && \
      python -c 'from schemas import Todo' && \
-     alembic revision --autogenerate -m 'initial' || exit 1 && \
-     alembic upgrade head || exit 1"
+     alembic revision --autogenerate -m 'initial' && \
+     alembic upgrade head"
 
   echo "Database migrations completed."
 }
