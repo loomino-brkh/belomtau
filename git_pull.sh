@@ -26,11 +26,27 @@ git stash -q
 # Save a list of files being tracked by git
 tracked_files=$(git ls-tree -r HEAD --name-only)
 
-# Get a list of files that are ignored by .gitignore
-ignored_files=$(git status --ignored --porcelain | grep '^!!' | cut -c4-)
+# Get a list of files and directories that are ignored by .gitignore
+# Use -z to handle filenames with spaces and special characters
+ignored_items=$(git status --ignored --porcelain -z | grep -z '^!!' | cut -c4- | tr '\0' '\n')
 
-# Create a temporary index to store current tracked files state
-git checkout-index -a --prefix=.git/tmp_workdir/
+# Create a temporary directory for backup
+backup_dir=".git/backup_ignored"
+rm -rf "$backup_dir"
+mkdir -p "$backup_dir"
+
+# Backup ignored items with their directory structure
+if [ -n "$ignored_items" ]; then
+				while IFS= read -r item; do
+								if [ -e "$item" ]; then
+												# Create parent directories in backup
+												parent_dir="$backup_dir/$(dirname "$item")"
+												mkdir -p "$parent_dir"
+												# Copy the item (file or directory) with its attributes
+												cp -a "$item" "$parent_dir/"
+								fi
+				done <<< "$ignored_items"
+fi
 
 # Clean working directory, excluding ignored files
 git clean -fd
