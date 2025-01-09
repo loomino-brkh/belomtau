@@ -55,21 +55,40 @@ fi
 # Clean working directory, excluding ignored files
 git clean -fd
 
-# Pull changes from remote
-if ! git pull --ff-only; then
-  # Restore stashed changes if pull fails
-  git stash pop -q 2>/dev/null
-  echo "Pull failed in: $REPO_DIR"
-  exit 1
+# Set upstream branch if not configured
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
+  remote_name=$(git remote)
+  if [ -z "$remote_name" ]; then
+    echo "No remote configured for: $REPO_DIR"
+				# Restore ignored files before exit
+				if [ -d "$backup_dir" ]; then
+						cp -a "$backup_dir"/* . 2>/dev/null || true
+						rm -rf "$backup_dir"
+    fi
+    exit 1
+  fi
+  git branch --set-upstream-to="$remote_name/$current_branch" "$current_branch"
 fi
 
-# Restore ignored items from backup
+# Pull changes from remote with error capture
+pull_output=$(git pull --ff-only 2>&1)
+pull_status=$?
+
+# Always restore ignored items from backup first
 if [ -d "$backup_dir" ]; then
-  # Use cp -a to preserve attributes and copy directories recursively
-  cp -a "$backup_dir"/* . 2>/dev/null || true
-  
-  # Clean up backup directory
-  rm -rf "$backup_dir"
+		# Use cp -a to preserve attributes and copy directories recursively
+		cp -a "$backup_dir"/* . 2>/dev/null || true
+		# Clean up backup directory
+		rm -rf "$backup_dir"
+fi
+
+if [ $pull_status -ne 0 ]; then
+		# Restore stashed changes if pull fails
+		git stash pop -q 2>/dev/null
+		echo "Pull failed in: $REPO_DIR"
+		echo "Error: $pull_output"
+		exit 1
 fi
 
 # Try to restore stashed changes, ignore if stash was empty
