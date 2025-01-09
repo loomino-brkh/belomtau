@@ -30,6 +30,10 @@ tracked_files=$(git ls-tree -r HEAD --name-only) || {
 				exit 1
 }
 
+# Get a list of files and directories that are ignored by .gitignore
+# Use -z to handle filenames with spaces and special characters
+ignored_items=$(git status --ignored --porcelain -z | grep -z '^!!' | cut -c4- | tr '\0' '\n')
+
 # Create a temporary directory for backup
 backup_dir=".git/backup_ignored"
 rm -rf "$backup_dir"
