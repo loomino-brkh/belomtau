@@ -92,8 +92,8 @@ if ! git rev-parse --verify @{u} >/dev/null 2>&1; then
   git branch --set-upstream-to="$remote_name/$current_branch" "$current_branch"
 fi
 
-# Pull changes from remote with error capture
-pull_output=$(git pull --ff-only 2>&1)
+# Pull changes from remote with auto conflict resolution favoring remote changes
+pull_output=$(git pull --strategy=recursive --strategy-option=theirs 2>&1)
 pull_status=$?
 
 # Always restore ignored items from backup first
@@ -105,6 +105,8 @@ if [ -d "$backup_dir" ]; then
 fi
 
 if [ $pull_status -ne 0 ]; then
+  # Attempt to abort any failed merge
+  git merge --abort &>/dev/null || true
   # Restore stashed changes if pull fails
   git stash pop -q 2>/dev/null
   echo "Pull failed in: $REPO_DIR"
