@@ -19,6 +19,27 @@ if [ ! -d "$REPO_DIR" ]; then
 		exit 1
 fi
 
+cd "$REPO_DIR" || {
+		echo "Error: Failed to change to directory: $REPO_DIR"
+		exit 1
+}
+
+# Verify it's a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+		echo "Error: Not a git repository: $REPO_DIR"
+		exit 1
+fi
+
+# Fetch from remote silently
+git fetch &>/dev/null
+
+# Check if there are any changes to pull
+if git diff --quiet HEAD @{u}; then
+  echo "No changes detected in: $REPO_DIR"
+  exit 0
+fi
+
+echo "Changes detected, syncing with remote in: $REPO_DIR"
 
 # Stash any uncommitted changes to tracked files
 git stash -q
