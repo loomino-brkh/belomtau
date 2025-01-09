@@ -46,10 +46,13 @@ git stash -q
 
 # Save a list of files being tracked by git
 # Get list of tracked files, handle potential errors
-tracked_files=$(git ls-tree -r HEAD --name-only) || {
-  echo "Error: Failed to get list of tracked files"
-  exit 1
-}
+tracked_files=""
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    tracked_files=$(git ls-tree -r HEAD --name-only)
+else
+    # If HEAD doesn't exist (no commits yet), consider no files as tracked
+    tracked_files=""
+fi
 
 # Get a list of files and directories that are ignored by .gitignore
 # Use -z to handle filenames with spaces and special characters
