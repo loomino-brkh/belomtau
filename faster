@@ -960,33 +960,33 @@ cek() {
   fi
 }
 
+create_user() {
+  # Check if pod exists and is running
+  if ! podman pod exists "$POD_NAME"; then
+    echo "Pod does not exist. Please start the services first using 'start' command"
+    return 1
+  fi
+
+  if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" != "Running" ]; then
+    echo "Pod is not running. Please start the services first using 'start' command"
+    return 1
+  fi
+
+  # Use the interactive container to create a Django user
+  echo "Creating a new Django user..."
+  podman exec -it "$INTERACT_CONTAINER_NAME" bash -c "
+    source /app/support/venv/bin/activate
+    cd /app/django_auth
+    python manage.py createsuperuser
+  "
+}
+
 # Check if the command exists as a function
 if [ "$(type -t "$COMMAND")" = "function" ]; then
-				# Execute the command
-				$COMMAND
+  # Execute the command
+  $COMMAND
 else
-				            echo "Error: Unknown command '$COMMAND'"
-				            echo "Available commands: init, start, stop, db, pg, cek, create_user"
-				            exit 1
+  echo "Error: Unknown command '$COMMAND'"
+  echo "Available commands: init, start, stop, db, pg, cek, create_user"
+  exit 1
 fi
-
-create_user() {
-				# Check if pod exists and is running
-				if ! podman pod exists "$POD_NAME"; then
-				    echo "Pod does not exist. Please start the services first using 'start' command"
-				    return 1
-				fi
-
-				if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" != "Running" ]; then
-				    echo "Pod is not running. Please start the services first using 'start' command"
-				    return 1
-				fi
-
-				# Use the interactive container to create a Django user
-				echo "Creating a new Django user..."
-				podman exec -it "$INTERACT_CONTAINER_NAME" bash -c "
-				    source /app/support/venv/bin/activate
-				    cd /app/django_auth
-				    python manage.py createsuperuser
-				"
-}
