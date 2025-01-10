@@ -972,9 +972,48 @@ create_user() {
     return 1
   fi
 
-  # Use the interactive container to create a Django user
+  # Check if PostgreSQL container is running and ready
+  if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+    echo "PostgreSQL is not ready. Attempting to restart..."
+    podman restart "$POSTGRES_CONTAINER_NAME"
+    
+    # Wait for PostgreSQL to be ready
+    for i in {1..30}; do
+      if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+        echo "PostgreSQL is now ready."
+        break
+      fi
+      if [ "$i" -eq 30 ]; then
+        echo "PostgreSQL failed to become ready. Please check the container logs:"
+        podman logs "$POSTGRES_CONTAINER_NAME"
+        return 1
+      fi
+      echo "Waiting for PostgreSQL to become ready... ($i/30)"
+      sleep 2
+    done
+  fi
+
+  # Ensure Django container is running and ready
+  if ! podman container exists "$DJANGO_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$DJANGO_CONTAINER_NAME")" != "true" ]; then
+    echo "Django container is not running. Attempting to restart..."
+    podman restart "$DJANGO_CONTAINER_NAME"
+    sleep 5
+  fi
+
+  # Export required environment variables
+  export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
+  export POSTGRES_USER="$POSTGRES_USER"
+  export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+  export POSTGRES_DB="$POSTGRES_DB"
+
+  # Use the interactive container to create a Django user with proper environment setup
   echo "Creating a new Django user..."
-  podman exec -it "$INTERACT_CONTAINER_NAME" bash -c "
+  podman exec -it \
+    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -e POSTGRES_DB="$POSTGRES_DB" \
+    "$INTERACT_CONTAINER_NAME" bash -c "
     source /app/support/venv/bin/activate
     cd /app/django_auth
     python manage.py createsuperuser
