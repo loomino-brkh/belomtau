@@ -967,6 +967,17 @@ run_postgres() {
 }
 
 wait_for_postgres() {
+  echo "Waiting for PostgreSQL to be ready..."
+  for i in {1..30}; do
+    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+      echo "PostgreSQL is ready."
+      return 0
+    fi
+    echo "Waiting for PostgreSQL... ($i/30)"
+    sleep 2
+  done
+  echo "PostgreSQL did not become ready in time."
+  return 1
 }
 
 run_redis() {
