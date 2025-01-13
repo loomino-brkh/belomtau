@@ -1232,12 +1232,12 @@ from pathlib import Path
 # Import all potential model files
 main_dir = Path("/app/main")
 for file_path in glob.glob(str(main_dir / "*.py")):
-   if not file_path.endswith("env.py"):
-       module_name = os.path.splitext(os.path.basename(file_path))[0]
-       try:
-           importlib.import_module(module_name)
-       except Exception as e:
-           print(f"Warning: Could not import {module_name}: {e}")
+  if not file_path.endswith("env.py"):
+      module_name = os.path.splitext(os.path.basename(file_path))[0]
+      try:
+          importlib.import_module(module_name)
+      except Exception as e:
+          print(f"Warning: Could not import {module_name}: {e}")
 '
      
      echo 'Checking current database status...'
@@ -1264,9 +1264,27 @@ for file_path in glob.glob(str(main_dir / "*.py")):
      
      echo 'Verifying database schema...'
      python -c 'from db import check_database_health; import asyncio; asyncio.run(check_database_health())' 2>&1 | tee /app/support/logs/migrations/db_health_check.log"; then
-    echo "ERROR: Alembic migrations failed. Check logs in support/logs/migrations/"
+        success=true
+        break
+      else
+        ((retry_count++))
+        if [ $retry_count -eq $max_retries ]; then
+          echo "ERROR: Alembic migrations failed after $max_retries attempts. Check logs in support/logs/migrations/"
+          return 1
+        fi
+      fi
+    done
+
+    if [ "$success" = true ]; then
+      echo "Alembic migrations completed successfully."
+      return 0
+    fi
     return 1
-  fi
+  }
+
+  # Run both migration functions
+  run_django_migrations || return 1
+  run_alembic_migrations || return 1
 
   echo "All database migrations completed successfully at $(date)"
   echo "Migration logs available in: $LOG_FILE"
