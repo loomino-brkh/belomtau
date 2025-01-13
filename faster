@@ -5,24 +5,18 @@ PORT1="8080"  # Nginx port
 PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
-# Load secrets from file
-SECRETS_FILE="$SUPPORT_DIR/secrets.env"
-if [ ! -f "$SECRETS_FILE" ]; then
-    echo "Creating secrets file from template..."
-    cp "$SUPPORT_DIR/secrets_template.env" "$SECRETS_FILE"
-    # Generate random values
-    RANDOM_KEY=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-    RANDOM_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-    sed -i \
-        -e "s/your_db_user/${APP_NAME}_user/" \
-        -e "s/your_secure_password/${RANDOM_PASSWORD}/" \
-        -e "s/your_db_name/${APP_NAME}_db/" \
-        -e "s/your_django_secret_key/${RANDOM_KEY}/" \
-        "$SECRETS_FILE"
-fi
+# Generate and manage secrets
+export POSTGRES_USER="${APP_NAME}_user"
+export POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+export POSTGRES_DB="${APP_NAME}_db"
+export DJANGO_SECRET_KEY=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+export REDIS_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 
-# Load secrets
-source "$SECRETS_FILE"
+# Ensure secrets are not persisted
+unset_secrets() {
+    unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DJANGO_SECRET_KEY REDIS_PASSWORD
+}
+trap unset_secrets EXIT
 # Check if command argument is provided
 if [ -z "$1" ]; then
     echo "Error: App name is required"
