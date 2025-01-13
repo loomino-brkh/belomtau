@@ -158,6 +158,8 @@ support/token
 support/venv/
 support/logs/
 support/*.log
+support/secrets.env
+support/backups/
 django_auth/static/
 
 # Python
