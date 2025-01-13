@@ -1145,18 +1145,29 @@ db() {
     return 1
   fi
 
-  # Run Django migrations with enhanced error handling and backup
+  # Run Django migrations with enhanced error handling, backup, and retry mechanism
   echo "Running Django migrations..."
   create_backup "django"
 
-  if ! podman run -it --rm --pod "$POD_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
-    -e "POSTGRES_USER=$POSTGRES_USER" \
-    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -e "POSTGRES_DB=$POSTGRES_DB" \
-    -w /app/django_auth \
-    "$PYTHON_IMAGE" bash -c \
+  run_django_migrations() {
+    local max_retries=3
+    local retry_count=0
+    local success=false
+
+    while [ $retry_count -lt $max_retries ] && [ "$success" = false ]; do
+      if [ $retry_count -gt 0 ]; then
+        echo "Retrying Django migrations (attempt $((retry_count + 1))/$max_retries)..."
+        sleep 5
+      fi
+
+      if podman run -it --rm --pod "$POD_NAME" \
+        -v "$PROJECT_DIR:/app:z" \
+        -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+        -e "POSTGRES_USER=$POSTGRES_USER" \
+        -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+        -e "POSTGRES_DB=$POSTGRES_DB" \
+        -w /app/django_auth \
+        "$PYTHON_IMAGE" bash -c \
     "set -e
      source /app/support/venv/bin/activate
      
