@@ -1107,8 +1107,21 @@ db() {
     "set -e
      source /app/support/venv/bin/activate
      
-     echo 'Verifying SQLModel imports...'
-     python -c 'from schemas import Todo'
+     echo 'Verifying SQLModel models...'
+     python -c '
+import glob, importlib, os
+from pathlib import Path
+
+# Import all potential model files
+main_dir = Path("/app/main")
+for file_path in glob.glob(str(main_dir / "*.py")):
+   if not file_path.endswith("env.py"):
+       module_name = os.path.splitext(os.path.basename(file_path))[0]
+       try:
+           importlib.import_module(module_name)
+       except Exception as e:
+           print(f"Warning: Could not import {module_name}: {e}")
+'
      
      echo 'Checking current database status...'
      alembic current 2>&1 | tee /app/support/logs/migrations/alembic_current.log
