@@ -1208,17 +1208,29 @@ db() {
     return 1
   fi
 
-  # Run Alembic migrations with comprehensive error handling and logging
+  # Run Alembic migrations with retry mechanism and enhanced error handling
   echo "Running Alembic migrations..."
-  if ! podman run -it --rm --pod "$POD_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -w /app/main \
-    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
-    -e "POSTGRES_USER=$POSTGRES_USER" \
-    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -e "POSTGRES_DB=$POSTGRES_DB" \
-    -e "PYTHONPATH=/app/main" \
-    "$PYTHON_IMAGE" bash -c \
+  
+  run_alembic_migrations() {
+    local max_retries=3
+    local retry_count=0
+    local success=false
+
+    while [ $retry_count -lt $max_retries ] && [ "$success" = false ]; do
+      if [ $retry_count -gt 0 ]; then
+        echo "Retrying Alembic migrations (attempt $((retry_count + 1))/$max_retries)..."
+        sleep 5
+      fi
+
+      if podman run -it --rm --pod "$POD_NAME" \
+        -v "$PROJECT_DIR:/app:z" \
+        -w /app/main \
+        -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+        -e "POSTGRES_USER=$POSTGRES_USER" \
+        -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+        -e "POSTGRES_DB=$POSTGRES_DB" \
+        -e "PYTHONPATH=/app/main" \
+        "$PYTHON_IMAGE" bash -c \
     "set -e
      source /app/support/venv/bin/activate
      
