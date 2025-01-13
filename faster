@@ -54,6 +54,8 @@ PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
 
 # Path settings
 ROOT_DIR="$HOME/.root_dir"
+EOL
+fi
 
 # Generate secrets if not exists
 if [ ! -f "${SUPPORT_DIR}/secrets.env" ]; then
@@ -78,15 +80,13 @@ SECRETS
     chmod 600 "${SUPPORT_DIR}/secrets.env"
 fi
 
+# Source environment configuration
+source "$ENV_FILE"
+
 # Load secrets
 set -a
 source "${SUPPORT_DIR}/secrets.env"
 set +a
-EOL
-fi
-
-# Source environment configuration
-source "$ENV_FILE"
 
 # Cleanup function to unset environment variables
 unset_secrets() {
