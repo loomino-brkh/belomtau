@@ -1282,15 +1282,21 @@ for file_path in glob.glob(str(main_dir / "*.py")):
     fi
     return 1
   }
+# Run migrations
+if ! run_django_migrations; then
+  return 1
+fi
 
-  # Run both migration functions
-  run_django_migrations || return 1
-  run_alembic_migrations || return 1
+if ! run_alembic_migrations; then
+  return 1
+fi
 
-  echo "All database migrations completed successfully at $(date)"
-  echo "Migration logs available in: $LOG_FILE"
-  
-  # Restore original stdout/stderr
+echo "All database migrations completed successfully at $(date)"
+echo "Migration logs available in: $LOG_FILE"
+
+# Restore original stdout/stderr
+exec 1>&3 2>&4
+return 0
   exec 1>&3 2>&4
 }
 
