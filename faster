@@ -176,6 +176,7 @@ uvicorn
 sqlmodel
 pydantic[email]
 psycopg2-binary
+asyncpg
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
@@ -183,7 +184,11 @@ redis
 fastapi-limiter
 fastapi-cache2
 python-dotenv
+tenacity
 alembic
+SQLAlchemy-Utils
+prometheus-client
+structlog
 Pillow
 PyYAML
 django
