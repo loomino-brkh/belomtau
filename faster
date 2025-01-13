@@ -967,16 +967,54 @@ run_postgres() {
 }
 
 wait_for_postgres() {
+  local max_retries=${POSTGRES_MAX_RETRIES:-30}
+  local retry_interval=${POSTGRES_RETRY_INTERVAL:-2}
+  local health_check_interval=${POSTGRES_HEALTH_CHECK_INTERVAL:-5}
+
   echo "Waiting for PostgreSQL container..."
-  for i in {1..30}; do
+  echo "Configuration:"
+  echo "- Maximum retries: $max_retries"
+  echo "- Retry interval: ${retry_interval}s"
+  echo "- Health check interval: Every ${health_check_interval} attempts"
+
+  for i in $(seq 1 $max_retries); do
     if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
-      echo "PostgreSQL is ready."
-      return 0
+      echo "PostgreSQL is responding. Running health checks..."
+      
+      # Perform basic health checks
+      if podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" <<-EOSQL >/dev/null 2>&1
+        SELECT 1;
+        SELECT pg_size_pretty(pg_database_size('$POSTGRES_DB'));
+        SELECT count(*) FROM pg_stat_activity;
+EOSQL
+      then
+        echo "PostgreSQL is ready and healthy."
+        return 0
+      else
+        echo "WARNING: PostgreSQL is responding but health checks failed."
+        echo "Checking database logs:"
+        podman logs --tail 50 "$POSTGRES_CONTAINER_NAME"
+      fi
     fi
-    sleep 2
+
+    if [ $((i % health_check_interval)) -eq 0 ]; then
+      echo "Health check at attempt $i:"
+      echo "Container status:"
+      podman container inspect "$POSTGRES_CONTAINER_NAME" | grep -E "Status|Error|Running"
+      echo "Resource usage:"
+      podman stats --no-stream "$POSTGRES_CONTAINER_NAME"
+    fi
+
+    echo "Attempt $i/$max_retries: Waiting for PostgreSQL..."
+    sleep $retry_interval
   done
-  echo "PostgreSQL did not become ready in time."
-  exit 1
+
+  echo "ERROR: PostgreSQL did not become ready in time."
+  echo "Last known status:"
+  podman logs --tail 100 "$POSTGRES_CONTAINER_NAME"
+  echo "Container inspection:"
+  podman container inspect "$POSTGRES_CONTAINER_NAME"
+  return 1
 }
 
 run_redis() {
