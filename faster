@@ -1,23 +1,35 @@
 #!/bin/bash
-# Load environment variables
+# Load environment configuration
+ENV_FILE="${SUPPORT_DIR}/env.conf"
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Creating environment configuration..."
+    mkdir -p "$SUPPORT_DIR"
+    cat > "$ENV_FILE" <<EOL
+# Application settings
 HOST_DOMAIN="api.var.my.id"
 PORT1="8080"  # Nginx port
 PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
-# Load or generate secrets
-SECRETS_FILE="${SUPPORT_DIR}/secrets.env"
+# Database settings
+POSTGRES_IMAGE="docker.io/library/postgres:16"
+PYTHON_IMAGE="docker.io/library/python:latest"
+REDIS_IMAGE="docker.io/library/redis:latest"
+NGINX_IMAGE="docker.io/library/nginx:latest"
+PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
 
-generate_secrets() {
-    # Generate secure random values
-    local pg_user="${APP_NAME}_user"
-    local pg_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-    local pg_db="${APP_NAME}_db"
-    local django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-    local redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+# Path settings
+ROOT_DIR="$HOME/.root_dir"
 
-    # Create secrets file with generated values
-    cat > "$SECRETS_FILE" <<EOL
+# Generate secrets if not exists
+if [ ! -f "${SUPPORT_DIR}/secrets.env" ]; then
+    pg_user="${APP_NAME}_user"
+    pg_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    pg_db="${APP_NAME}_db"
+    django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    
+    cat > "${SUPPORT_DIR}/secrets.env" <<SECRETS
 # Database credentials
 POSTGRES_USER=$pg_user
 POSTGRES_PASSWORD=$pg_pass
@@ -28,22 +40,21 @@ DJANGO_SECRET_KEY=$django_key
 
 # Redis settings
 REDIS_PASSWORD=$redis_pass
+SECRETS
+    chmod 600 "${SUPPORT_DIR}/secrets.env"
+fi
+
+# Load secrets
+set -a
+source "${SUPPORT_DIR}/secrets.env"
+set +a
 EOL
-    chmod 600 "$SECRETS_FILE"
-}
+fi
 
-load_secrets() {
-    if [ ! -f "$SECRETS_FILE" ]; then
-        generate_secrets
-    fi
-    # Source the secrets file
-    set -a
-    source "$SECRETS_FILE"
-    set +a
-}
+# Source environment configuration
+source "$ENV_FILE"
 
-# Load secrets and ensure they're unset on exit
-load_secrets
+# Cleanup function to unset environment variables
 unset_secrets() {
     unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DJANGO_SECRET_KEY REDIS_PASSWORD
 }
@@ -76,18 +87,8 @@ MAIN_DIR="${PROJECT_DIR}/main"
 DJANGO_DIR="${PROJECT_DIR}/django_auth"
 ROOT_DIR="$HOME/.root_dir"
 
-POSTGRES_IMAGE="docker.io/library/postgres:16"
-PYTHON_IMAGE="docker.io/library/python:latest"
-REDIS_IMAGE="docker.io/library/redis:latest"
-NGINX_IMAGE="docker.io/library/nginx:latest"
-PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
-
+# Container names
 POD_NAME="${APP_NAME}_pod"
-
-POSTGRES_DB="$POSTGRES_DB"
-POSTGRES_USER="$POSTGRES_USER"
-POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
-
 POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
 REDIS_CONTAINER_NAME="${APP_NAME}_redis"
 UVICORN_CONTAINER_NAME="${APP_NAME}_uvicorn"
