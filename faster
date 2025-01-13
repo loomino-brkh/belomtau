@@ -163,6 +163,8 @@ support/logs/
 support/*.log
 support/secrets.env
 support/backups/
+support/env.conf
+support/secrets.env
 django_auth/static/
 
 # Python
