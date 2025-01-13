@@ -523,25 +523,144 @@ EOL
   echo "Creating db.py..."
   cat >"$DB_FILE" <<EOL
 from sqlmodel import SQLModel, create_engine, Session
-from typing import Generator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.pool import QueuePool
+from contextlib import contextmanager
+from typing import Generator, AsyncGenerator
 import os
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-# Use container name for database connection
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Database configuration with fallbacks
 POSTGRES_CONTAINER = os.getenv('POSTGRES_CONTAINER_NAME', 'localhost')
 POSTGRES_USER = os.getenv('POSTGRES_USER', '${POSTGRES_USER}')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '${POSTGRES_PASSWORD}')
 POSTGRES_DB = os.getenv('POSTGRES_DB', '${POSTGRES_DB}')
+POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_CONTAINER}:5432/{POSTGRES_DB}"
+# Connection URLs for both sync and async engines
+SYNC_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_CONTAINER}:{POSTGRES_PORT}/{POSTGRES_DB}"
+ASYNC_DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_CONTAINER}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
+# Engine configuration
+POOL_SIZE = int(os.getenv('POOL_SIZE', '5'))
+MAX_OVERFLOW = int(os.getenv('MAX_OVERFLOW', '10'))
+POOL_TIMEOUT = int(os.getenv('POOL_TIMEOUT', '30'))
+POOL_RECYCLE = int(os.getenv('POOL_RECYCLE', '1800'))  # 30 minutes
+CONNECT_TIMEOUT = int(os.getenv('CONNECT_TIMEOUT', '10'))  # 10 seconds
 
+# Create engines with optimized configurations
+engine = create_engine(
+    SYNC_DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
+    pool_timeout=POOL_TIMEOUT,
+    pool_recycle=POOL_RECYCLE,
+    pool_pre_ping=True,
+    connect_args={
+        "connect_timeout": CONNECT_TIMEOUT,
+        "application_name": "fastapi_app"  # Helps identify connections in pg_stat_activity
+    }
+)
+
+async_engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
+    pool_timeout=POOL_TIMEOUT,
+    pool_recycle=POOL_RECYCLE,
+    pool_pre_ping=True,
+    connect_args={
+        "timeout": CONNECT_TIMEOUT,
+        "application_name": "fastapi_app_async"
+    }
+)
+
+@contextmanager
 def get_db() -> Generator[Session, None, None]:
+    """
+    Synchronous database session generator with retry mechanism.
+    """
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        reraise=True
+    )
+    def _get_session():
+        try:
+            db = Session(engine)
+            return db
+        except Exception as e:
+            logger.error(f"Failed to create database session: {e}")
+            raise
+
+    db = _get_session()
     try:
-        with Session(engine) as session:
-            yield session
+        yield db
     except Exception as e:
-        print(f"Database error: {e}")
+        logger.error(f"Database session error: {e}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Asynchronous database session generator with retry mechanism.
+    """
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        reraise=True
+    )
+    async def _get_async_session():
+        try:
+            async with AsyncSession(async_engine) as session:
+                return session
+        except Exception as e:
+            logger.error(f"Failed to create async database session: {e}")
+            raise
+
+    try:
+        async_session = await _get_async_session()
+        yield async_session
+    except Exception as e:
+        logger.error(f"Async database session error: {e}")
+        await async_session.rollback()
+        raise
+    finally:
+        await async_session.close()
+
+# Helper function to check database health
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+async def check_database_health() -> bool:
+    """
+    Check if database is responsive and healthy.
+    Returns True if database is healthy, raises exception otherwise.
+    """
+    try:
+        async with async_engine.connect() as conn:
+            await conn.execute("SELECT 1")
+        return True
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        raise
+
+# Create all tables defined in SQLModel metadata
+def init_db():
+    """
+    Initialize database tables with error handling.
+    """
+    try:
+        SQLModel.metadata.create_all(engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {e}")
         raise
 EOL
 
@@ -644,93 +763,93 @@ EOL
 
   # Update env.py with correct imports and configuration
     cat >"$MAIN_DIR/migrations/env.py" <<EOT
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
-from alembic import context
-import os, sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Import your models here - this is important for Alembic to detect model changes
-from schemas import Todo
-from sqlmodel import SQLModel
-
-# this is the Alembic Config object
-config = context.config
-
-# Interpret the config file for Python logging
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
-
-# Set SQLModel's metadata for Alembic
-target_metadata = SQLModel.metadata
-
-def get_url():
-    """Get database URL from environment variables."""
-    user = os.getenv('POSTGRES_USER')
-    password = os.getenv('POSTGRES_PASSWORD')
-    host = os.getenv('POSTGRES_CONTAINER_NAME')
-    db = os.getenv('POSTGRES_DB')
-    return f"postgresql://{user}:{password}@{host}:5432/{db}"
-
-def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
-    url = get_url()
-    context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        # Enhanced migration options
-        compare_type=True,  # Detect column type changes
-        compare_server_default=True,  # Detect default value changes
-        render_as_batch=True,  # Better handling of ALTER TABLE operations
-        include_schemas=True,  # Include schema-level operations
-    )
-
-    with context.begin_transaction():
-        context.run_migrations()
-
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    configuration = config.get_section(config.config_ini_section)
-    if configuration is not None:
-        configuration["sqlalchemy.url"] = get_url()
-    
-    connectable = engine_from_config(
-        configuration or {},
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            # Enhanced migration options
-            compare_type=True,  # Detect column type changes
-            compare_server_default=True,  # Detect default value changes
-            render_as_batch=True,  # Better handling of ALTER TABLE operations
-            include_schemas=True,  # Include schema-level operations
-            include_name=True,  # Consider column/table name changes
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
-
-def run_migrations():
-    """Run migrations in either 'online' or 'offline' mode."""
-    try:
-        if context.is_offline_mode():
-            run_migrations_offline()
-        else:
-            run_migrations_online()
-    except Exception as e:
-        print(f"Error during migration: {e}")
-        raise
-
-if __name__ == "__main__":
-    run_migrations()
-EOT
+  from logging.config import fileConfig
+  from sqlalchemy import engine_from_config, pool
+  from alembic import context
+  import os, sys
+  sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+  
+  # Import your models here - this is important for Alembic to detect model changes
+  from schemas import Todo
+  from sqlmodel import SQLModel
+  
+  # this is the Alembic Config object
+  config = context.config
+  
+  # Interpret the config file for Python logging
+  if config.config_file_name is not None:
+      fileConfig(config.config_file_name)
+  
+  # Set SQLModel's metadata for Alembic
+  target_metadata = SQLModel.metadata
+  
+  def get_url():
+      """Get database URL from environment variables."""
+      user = os.getenv('POSTGRES_USER')
+      password = os.getenv('POSTGRES_PASSWORD')
+      host = os.getenv('POSTGRES_CONTAINER_NAME')
+      db = os.getenv('POSTGRES_DB')
+      return f"postgresql://{user}:{password}@{host}:5432/{db}"
+  
+  def run_migrations_offline() -> None:
+      """Run migrations in 'offline' mode."""
+      url = get_url()
+      context.configure(
+          url=url,
+          target_metadata=target_metadata,
+          literal_binds=True,
+          dialect_opts={"paramstyle": "named"},
+          # Enhanced migration options
+          compare_type=True,  # Detect column type changes
+          compare_server_default=True,  # Detect default value changes
+          render_as_batch=True,  # Better handling of ALTER TABLE operations
+          include_schemas=True,  # Include schema-level operations
+      )
+  
+      with context.begin_transaction():
+          context.run_migrations()
+  
+  def run_migrations_online() -> None:
+      """Run migrations in 'online' mode."""
+      configuration = config.get_section(config.config_ini_section)
+      if configuration is not None:
+          configuration["sqlalchemy.url"] = get_url()
+      
+      connectable = engine_from_config(
+          configuration or {},
+          prefix="sqlalchemy.",
+          poolclass=pool.NullPool,
+      )
+  
+      with connectable.connect() as connection:
+          context.configure(
+              connection=connection,
+              target_metadata=target_metadata,
+              # Enhanced migration options
+              compare_type=True,  # Detect column type changes
+              compare_server_default=True,  # Detect default value changes
+              render_as_batch=True,  # Better handling of ALTER TABLE operations
+              include_schemas=True,  # Include schema-level operations
+              include_name=True,  # Consider column/table name changes
+          )
+  
+          with context.begin_transaction():
+              context.run_migrations()
+  
+  def run_migrations():
+      """Run migrations in either 'online' or 'offline' mode."""
+      try:
+          if context.is_offline_mode():
+              run_migrations_offline()
+          else:
+              run_migrations_online()
+      except Exception as e:
+          print(f"Error during migration: {e}")
+          raise
+  
+  if __name__ == "__main__":
+      run_migrations()
+  EOT
 }
 
 stop() {
