@@ -458,8 +458,8 @@ from redis import asyncio as aioredis
 from sqlmodel import SQLModel, Session, select
 import sys, os, requests
 sys.path.append('/app/main')
-from db import engine, get_db
-from schemas import Todo, TodoCreate, TodoRead  # We'll create these in a moment
+from database.db import engine, get_db
+from core.schemas import Todo, TodoCreate, TodoRead  # We'll create these in a moment
 import uvicorn
 
 app = FastAPI()
