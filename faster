@@ -826,15 +826,45 @@ pg() {
 db() {
   echo "Running database migrations..."
 
-  # Export environment variables that will be needed by Alembic
+  # Function to check database connection
+  check_db_connection() {
+    podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null
+  }
+
+  # Function to wait for database
+  wait_for_db() {
+    local retries=30
+    local count=0
+    echo "Waiting for database connection..."
+    until check_db_connection || [ $count -eq $retries ]; do
+      echo "Waiting for database... ($count/$retries)"
+      sleep 2
+      count=$((count + 1))
+    done
+
+    if [ $count -eq $retries ]; then
+      echo "Database connection timeout"
+      return 1
+    fi
+    echo "Database is ready"
+    return 0
+  }
+
+  # Export environment variables for migrations
   export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
   export POSTGRES_USER="$POSTGRES_USER"
   export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
   export POSTGRES_DB="$POSTGRES_DB"
 
-  # Run Django migrations first
+  # Wait for database to be ready
+  if ! wait_for_db; then
+    echo "Failed to connect to database. Please check database container status."
+    return 1
+  fi
+
+  # Run Django migrations with proper error handling
   echo "Running Django migrations..."
-  podman run -it --rm --pod "$POD_NAME" \
+  if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
     -e "POSTGRES_USER=$POSTGRES_USER" \
@@ -843,22 +873,34 @@ db() {
     -w /app/django_auth \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
-     python manage.py makemigrations && \
-     python manage.py migrate"
+     echo 'Making Django migrations...' && \
+     python manage.py makemigrations 2>&1 && \
+     echo 'Applying Django migrations...' && \
+     python manage.py migrate 2>&1"; then
+    echo "Django migrations failed. Please check the errors above."
+    return 1
+  fi
 
-  # Wait a bit for Django migrations to complete
-  sleep 5
+  echo "Django migrations completed successfully."
+  sleep 2
 
-  # Run Alembic migrations for FastAPI with proper error handling
   echo "Running FastAPI/Alembic migrations..."
-  # Ensure migrations directory exists and has correct permissions
-  podman run -it --rm --pod "$POD_NAME" \
+  
+  # Create migrations directory and set permissions
+  echo "Setting up Alembic migrations directory..."
+  if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/main \
-    "$PYTHON_IMAGE" bash -c "mkdir -p /app/main/migrations/versions && chmod 777 /app/main/migrations/versions"
-    
-  # Run Alembic migrations with proper error handling and directory setup
-  podman run -it --rm --pod "$POD_NAME" \
+    "$PYTHON_IMAGE" bash -c \
+    "mkdir -p migrations/versions && \
+     chmod -R 777 migrations/"; then
+    echo "Failed to set up migrations directory"
+    return 1
+  fi
+
+  # Run Alembic migrations with enhanced error handling
+  echo "Running Alembic migrations..."
+  if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/main \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
@@ -868,19 +910,25 @@ db() {
     -e "PYTHONPATH=/app/main" \
     "$PYTHON_IMAGE" bash -c \
     "source /app/support/venv/bin/activate && \
-     mkdir -p migrations/versions && \
+     echo 'Verifying SQLModel imports...' && \
      python -c 'from schemas import Todo' && \
+     echo 'Checking for existing migrations...' && \
      if [ ! \"\$(ls -A migrations/versions/)\" ]; then \
        echo 'Creating initial migration...' && \
        alembic revision --autogenerate -m 'initial' && \
+       echo 'Applying initial migration...' && \
        alembic upgrade head; \
      else \
-       echo 'Migrations already exist, checking for changes...' && \
+       echo 'Detecting schema changes...' && \
        alembic revision --autogenerate -m \"update_\$(date +%Y%m%d_%H%M%S)\" && \
+       echo 'Applying migrations...' && \
        alembic upgrade head; \
-     fi"
+     fi" 2>&1; then
+    echo "Alembic migrations failed. Please check the errors above."
+    return 1
+  fi
 
-  echo "Database migrations completed."
+  echo "Database migrations completed successfully."
 }
 
 pod_create() {
