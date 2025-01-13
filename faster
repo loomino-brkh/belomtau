@@ -1041,15 +1041,59 @@ pg() {
 }
 
 db() {
-  # Setup logging
+  # Prevent parallel execution
+  local LOCK_FILE="$SUPPORT_DIR/.db_migration.lock"
+  local PID_FILE="$SUPPORT_DIR/.db_migration.pid"
+  
+  # Check for existing lock
+  if [ -f "$LOCK_FILE" ]; then
+    if [ -f "$PID_FILE" ] && [ -n "$(cat "$PID_FILE")" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "ERROR: Another migration is already running (PID: $(cat "$PID_FILE"))"
+      return 1
+    else
+      echo "WARNING: Stale lock file found. Previous migration may have failed."
+      rm -f "$LOCK_FILE" "$PID_FILE"
+    fi
+  fi
+
+  # Create lock and PID files
+  echo $$ > "$PID_FILE"
+  touch "$LOCK_FILE"
+
+  # Setup resource cleanup
+  cleanup() {
+    local exit_code=$?
+    echo "Cleaning up resources..."
+    rm -f "$LOCK_FILE" "$PID_FILE"
+    # Restore original stdout/stderr
+    [ -n "${exec_3_set:-}" ] && exec 1>&3
+    [ -n "${exec_4_set:-}" ] && exec 2>&4
+    exit $exit_code
+  }
+  trap cleanup EXIT INT TERM
+
+  # Setup logging with error handling
   mkdir -p "$SUPPORT_DIR/logs/migrations"
   local LOG_FILE="$SUPPORT_DIR/logs/migrations/$(date +%Y%m%d_%H%M%S)_migration.log"
-  exec 3>&1 4>&2
-  exec 1> >(tee -a "$LOG_FILE")
-  exec 2> >(tee -a "$LOG_FILE" >&2)
+  if ! exec 3>&1 4>&2; then
+    echo "ERROR: Failed to setup file descriptors"
+    return 1
+  fi
+  exec_3_set=1
+  exec_4_set=1
+  
+  if ! exec 1> >(tee -a "$LOG_FILE"); then
+    echo "ERROR: Failed to setup stdout redirection"
+    return 1
+  fi
+  if ! exec 2> >(tee -a "$LOG_FILE" >&2); then
+    echo "ERROR: Failed to setup stderr redirection"
+    return 1
+  fi
 
   echo "Starting database migrations at $(date)"
   echo "Logging to: $LOG_FILE"
+  echo "Migration process ID: $$"
 
   # Enhanced database connection check with diagnostics
   check_db_connection() {
