@@ -16,7 +16,7 @@ APP_NAME="$1"
 COMMAND="$2"
 
 # Set up directory paths first
-PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
+PROJECT_DIR="$HOME/projects/api_${APP_NAME}"
 SUPPORT_DIR="${PROJECT_DIR}/support"
 MAIN_DIR="${PROJECT_DIR}/main"
 DJANGO_DIR="${PROJECT_DIR}/django_auth"
