@@ -1180,9 +1180,10 @@ db() {
       return 0
     fi
     return 1
+  }
 
-  echo "Django migrations completed successfully."
-  sleep 2
+  # Run Django migrations
+  run_django_migrations || return 1
 
   # Run FastAPI/Alembic migrations with enhanced error handling
   echo "Running FastAPI/Alembic migrations..."
