@@ -1095,30 +1095,81 @@ db() {
   echo "Logging to: $LOG_FILE"
   echo "Migration process ID: $$"
 
-  # Enhanced database connection check with diagnostics
+  # Comprehensive database health check
   check_db_connection() {
+    local check_type="$1"
+    
+    # Basic connectivity check
     if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
       echo "Database connection failed. Checking status..."
       podman logs --tail 50 "$POSTGRES_CONTAINER_NAME"
       return 1
     fi
+
+    # Skip advanced checks if only basic check requested
+    [ "$check_type" = "basic" ] && return 0
+
+    echo "Performing comprehensive database health check..."
+    
+    # Check database size and connection count
+    podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" <<-EOSQL
+      SELECT pg_size_pretty(pg_database_size('$POSTGRES_DB')) as "Database Size";
+      SELECT count(*) as "Active Connections" FROM pg_stat_activity WHERE datname = '$POSTGRES_DB';
+      SELECT state, count(*) FROM pg_stat_activity GROUP BY state;
+EOSQL
+
+    # Check for long-running queries
+    echo "Checking for long-running queries..."
+    podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "
+      SELECT pid, now() - pg_stat_activity.query_start AS duration, query
+      FROM pg_stat_activity
+      WHERE state != 'idle'
+      AND now() - pg_stat_activity.query_start > interval '5 minutes';"
+
+    # Check for bloat
+    echo "Checking for table bloat..."
+    podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "
+      SELECT schemaname, tablename, n_dead_tup, n_live_tup, last_autovacuum
+      FROM pg_stat_user_tables
+      WHERE n_dead_tup > 1000
+      ORDER BY n_dead_tup DESC;"
+
+    # Check replication status if applicable
+    if podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "SELECT EXISTS (SELECT 1 FROM pg_replication_slots);" | grep -q 't'; then
+      echo "Checking replication status..."
+      podman exec -it "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "SELECT * FROM pg_stat_replication;"
+    fi
+
     return 0
   }
 
-  # Enhanced database wait function with better feedback
+  # Enhanced database wait function with comprehensive health checks
   wait_for_db() {
     local max_retries=${DB_MAX_RETRIES:-30}
     local count=0
     echo "Waiting for database connection..."
-    until check_db_connection || [ $count -eq $max_retries ]; do
+    
+    until check_db_connection "basic" || [ $count -eq $max_retries ]; do
       echo "Attempt $((count + 1))/$max_retries: Waiting for database..."
       if [ $((count % 5)) -eq 0 ]; then
         echo "Checking database container status..."
         podman container inspect "$POSTGRES_CONTAINER_NAME" | grep -E "Status|Error|Running"
+        
+        # Check system resources
+        echo "Checking system resources..."
+        podman stats --no-stream "$POSTGRES_CONTAINER_NAME"
       fi
       sleep 2
       count=$((count + 1))
     done
+
+    # Final comprehensive health check
+    if [ $count -lt $max_retries ]; then
+      echo "Database is responding, performing comprehensive health check..."
+      if ! check_db_connection "full"; then
+        echo "WARNING: Database is accessible but showing potential issues"
+      fi
+    fi
 
     if [ $count -eq $max_retries ]; then
       echo "ERROR: Database connection timeout after $max_retries attempts"
