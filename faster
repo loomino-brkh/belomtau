@@ -771,12 +771,22 @@ EOL
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-import os, sys
+import os, sys, importlib, glob
+from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import your models here - this is important for Alembic to detect model changes
-from schemas import Todo
+# Import all models - dynamically import all Python files that might contain models
 from sqlmodel import SQLModel
+
+# Dynamically import all Python files in the main directory
+main_dir = Path(os.path.dirname(os.path.dirname(__file__)))
+for file_path in glob.glob(str(main_dir / "*.py")):
+    if not file_path.endswith('env.py'):  # Skip this env.py file
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+        try:
+            importlib.import_module(module_name)
+        except Exception as e:
+            print(f"Warning: Could not import {module_name}: {e}")
 
 # this is the Alembic Config object
 config = context.config
