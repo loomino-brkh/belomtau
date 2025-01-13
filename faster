@@ -1081,16 +1081,29 @@ db() {
     return 0
   }
 
-  # Create database backup
+  # Enhanced backup function with compression and rotation
   create_backup() {
     local backup_type=$1
-    local backup_file="$SUPPORT_DIR/db_backup_${backup_type}_$(date +%Y%m%d_%H%M%S).sql"
-    echo "Creating backup before ${backup_type} migrations..."
-    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > "$backup_file"; then
-      echo "Backup created successfully at: $backup_file"
+    local backup_dir="$SUPPORT_DIR/backups"
+    local backup_file="$backup_dir/db_backup_${backup_type}_$(date +%Y%m%d_%H%M%S).sql.gz"
+    local max_backups=5
+
+    # Create backup directory if it doesn't exist
+    mkdir -p "$backup_dir"
+
+    echo "Creating compressed backup before ${backup_type} migrations..."
+    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > "$backup_file"; then
+        echo "Backup created successfully at: $backup_file"
+        
+        # Rotate old backups
+        local old_backups=$(ls -t "$backup_dir"/db_backup_${backup_type}_*.sql.gz 2>/dev/null | tail -n +$((max_backups + 1)))
+        if [ ! -z "$old_backups" ]; then
+            echo "Removing old backups..."
+            echo "$old_backups" | xargs rm -f
+        fi
     else
-      echo "WARNING: Failed to create backup"
-      return 1
+        echo "WARNING: Failed to create backup"
+        return 1
     fi
   }
 
