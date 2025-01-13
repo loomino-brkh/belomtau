@@ -1,4 +1,38 @@
 #!/bin/bash
+# Check if command argument is provided
+if [ -z "$1" ]; then
+    echo "Error: App name is required"
+    echo "Usage: $0 <app_name> <command>"
+    exit 1
+fi
+
+if [ -z "$2" ]; then
+    echo "Error: Command is required"
+    echo "Usage: $0 <app_name> <command>"
+    exit 1
+fi
+
+APP_NAME="$1"
+COMMAND="$2"
+
+# Set up directory paths first
+PROJECT_DIR="$HOME/fast_projects/api_${APP_NAME}"
+SUPPORT_DIR="${PROJECT_DIR}/support"
+MAIN_DIR="${PROJECT_DIR}/main"
+DJANGO_DIR="${PROJECT_DIR}/django_auth"
+ROOT_DIR="$HOME/.root_dir"
+
+# Container names
+POD_NAME="${APP_NAME}_pod"
+POSTGRES_CONTAINER_NAME="${APP_NAME}_postgres"
+REDIS_CONTAINER_NAME="${APP_NAME}_redis"
+UVICORN_CONTAINER_NAME="${APP_NAME}_uvicorn"
+DJANGO_CONTAINER_NAME="${APP_NAME}_django"
+NGINX_CONTAINER_NAME="${APP_NAME}_nginx"
+PGADMIN_CONTAINER_NAME="${APP_NAME}_pgadmin"
+CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
+INTERACT_CONTAINER_NAME="${APP_NAME}_interact"
+
 # Load environment configuration
 ENV_FILE="${SUPPORT_DIR}/env.conf"
 if [ ! -f "$ENV_FILE" ]; then
