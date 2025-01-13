@@ -1164,9 +1164,22 @@ db() {
      
      echo 'Verifying Django models...'
      python manage.py check --deploy 2>&1 | tee /app/support/logs/migrations/django_check.log"; then
-    echo "ERROR: Django migrations failed. Check logs in support/logs/migrations/"
+        success=true
+        break
+      else
+        ((retry_count++))
+        if [ $retry_count -eq $max_retries ]; then
+          echo "ERROR: Django migrations failed after $max_retries attempts. Check logs in support/logs/migrations/"
+          return 1
+        fi
+      fi
+    done
+
+    if [ "$success" = true ]; then
+      echo "Django migrations completed successfully."
+      return 0
+    fi
     return 1
-  fi
 
   echo "Django migrations completed successfully."
   sleep 2
