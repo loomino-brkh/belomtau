@@ -7,3 +7,11 @@
 
 # 2025-01-13 11:30:59.964620
 +no
+
+# 2025-01-13 11:33:13.865659
++make faster script to: ensure the migration (db function) will success for future development of file cretaed by init function,
++
++make all secret (all password) in on file inside support directory and ignored from git, and modify this script to that change
+
+# 2025-01-13 11:33:17.932962
++yes
