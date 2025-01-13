@@ -5,14 +5,45 @@ PORT1="8080"  # Nginx port
 PORT2="8000"  # FastAPI port
 PORT3="8001"  # Django port
 
-# Generate and manage secrets
-export POSTGRES_USER="${APP_NAME}_user"
-export POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-export POSTGRES_DB="${APP_NAME}_db"
-export DJANGO_SECRET_KEY=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-export REDIS_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+# Load or generate secrets
+SECRETS_FILE="${SUPPORT_DIR}/secrets.env"
 
-# Ensure secrets are not persisted
+generate_secrets() {
+    # Generate secure random values
+    local pg_user="${APP_NAME}_user"
+    local pg_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    local pg_db="${APP_NAME}_db"
+    local django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    local redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+
+    # Create secrets file with generated values
+    cat > "$SECRETS_FILE" <<EOL
+# Database credentials
+POSTGRES_USER=$pg_user
+POSTGRES_PASSWORD=$pg_pass
+POSTGRES_DB=$pg_db
+
+# Django settings
+DJANGO_SECRET_KEY=$django_key
+
+# Redis settings
+REDIS_PASSWORD=$redis_pass
+EOL
+    chmod 600 "$SECRETS_FILE"
+}
+
+load_secrets() {
+    if [ ! -f "$SECRETS_FILE" ]; then
+        generate_secrets
+    fi
+    # Source the secrets file
+    set -a
+    source "$SECRETS_FILE"
+    set +a
+}
+
+# Load secrets and ensure they're unset on exit
+load_secrets
 unset_secrets() {
     unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DJANGO_SECRET_KEY REDIS_PASSWORD
 }
