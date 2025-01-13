@@ -1090,14 +1090,14 @@ db() {
   if ! podman container exists "$POSTGRES_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER_NAME")" != "true" ]; then
     echo "PostgreSQL container is not running. Please start the services first."
     return 1
-  }
+  fi
 
   # Wait for PostgreSQL to be ready
   echo "Checking PostgreSQL connection..."
   if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER"; then
     echo "PostgreSQL is not ready. Please check the container status."
     return 1
-  }
+  fi
 
   # Run Django migrations
   echo "Running Django migrations..."
