@@ -1079,6 +1079,82 @@ pg() {
 }
 
 db() {
+  echo "Running database migrations..."
+
+  # Check if the containers are running
+  if ! podman container exists "$INTERACT_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$INTERACT_CONTAINER_NAME")" != "true" ]; then
+    echo "Interactive container is not running. Please start the services first."
+    return 1
+  }
+
+  if ! podman container exists "$POSTGRES_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER_NAME")" != "true" ]; then
+    echo "PostgreSQL container is not running. Please start the services first."
+    return 1
+  }
+
+  # Wait for PostgreSQL to be ready
+  echo "Checking PostgreSQL connection..."
+  if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER"; then
+    echo "PostgreSQL is not ready. Please check the container status."
+    return 1
+  }
+
+  # Run Django migrations
+  echo "Running Django migrations..."
+  podman exec -it \
+    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -e POSTGRES_DB="$POSTGRES_DB" \
+    "$INTERACT_CONTAINER_NAME" bash -c "
+      set -e
+      echo 'Activating virtual environment...'
+      source /app/support/venv/bin/activate
+      cd /app/django_auth
+      
+      echo 'Making Django migrations...'
+      python manage.py makemigrations
+      
+      echo 'Applying Django migrations...'
+      python manage.py migrate
+      
+      echo 'Django migrations completed successfully.'
+    " || {
+      echo "Django migration failed."
+      return 1
+    }
+
+  # Run FastAPI/Alembic migrations
+  echo "Running FastAPI migrations..."
+  podman exec -it \
+    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -e POSTGRES_DB="$POSTGRES_DB" \
+    "$INTERACT_CONTAINER_NAME" bash -c "
+      set -e
+      echo 'Activating virtual environment...'
+      source /app/support/venv/bin/activate
+      cd /app/main
+      
+      if [ ! -d 'migrations/versions' ]; then
+        echo 'Creating migrations directory...'
+        mkdir -p migrations/versions
+      fi
+      
+      echo 'Creating new Alembic migration...'
+      alembic -c alembic.ini revision --autogenerate -m 'auto_migration'
+      
+      echo 'Upgrading database to latest version...'
+      alembic -c alembic.ini upgrade head
+      
+      echo 'FastAPI migrations completed successfully.'
+    " || {
+      echo "FastAPI migration failed."
+      return 1
+    }
+
+  echo "All database migrations completed successfully."
 }
 
 pod_create() {
