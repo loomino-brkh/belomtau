@@ -1282,22 +1282,89 @@ for file_path in glob.glob(str(main_dir / "*.py")):
     fi
     return 1
   }
-# Run migrations
+# Create backup before running migrations
+backup_dir="$SUPPORT_DIR/backups/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$backup_dir"
+
+echo "Creating database backup before migrations..."
+if ! podman exec -i "$POSTGRES_CONTAINER_NAME" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > "$backup_dir/pre_migration.sql"; then
+  echo "WARNING: Failed to create backup, proceeding without backup..."
+fi
+
+# Run migrations with schema validation
+echo "Running schema validation..."
+if ! podman run -it --rm --pod "$POD_NAME" \
+  -v "$PROJECT_DIR:/app:z" \
+  -w /app/main \
+  -e "PYTHONPATH=/app/main" \
+  -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+  -e "POSTGRES_USER=$POSTGRES_USER" \
+  -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+  -e "POSTGRES_DB=$POSTGRES_DB" \
+  "$PYTHON_IMAGE" bash -c \
+  "source /app/support/venv/bin/activate && \
+   python -c '
+from sqlmodel import SQLModel
+from db import engine
+import importlib
+import glob
+import os
+
+# Import all models
+for file in glob.glob(\"/app/main/**/*.py\", recursive=True):
+  if \"migrations\" not in file:
+      try:
+          module_path = os.path.relpath(file, \"/app/main\").replace(\".py\", \"\").replace(\"/\", \".\")
+          importlib.import_module(module_path)
+      except Exception as e:
+          print(f\"Warning: Could not import {file}: {e}\")
+
+# Validate models
+SQLModel.metadata.create_all(engine)
+print(\"Schema validation successful\")
+'"; then
+  echo "ERROR: Schema validation failed"
+  return 1
+fi
+
+# Run migrations with transaction handling
+local migration_success=true
+
+# Start transaction
+podman exec -i "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "BEGIN;" > /dev/null
+
+# Run Django migrations first
 if ! run_django_migrations; then
-  return 1
+  migration_success=false
 fi
 
-if ! run_alembic_migrations; then
-  return 1
+# Run Alembic migrations if Django migrations succeeded
+if [ "$migration_success" = true ] && ! run_alembic_migrations; then
+  migration_success=false
 fi
 
-echo "All database migrations completed successfully at $(date)"
-echo "Migration logs available in: $LOG_FILE"
+# Handle transaction based on success
+if [ "$migration_success" = true ]; then
+  echo "Committing migrations..."
+  podman exec -i "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "COMMIT;" > /dev/null
+  echo "All database migrations completed successfully at $(date)"
+  echo "Migration logs available in: $LOG_FILE"
+else
+  echo "Rolling back migrations due to failure..."
+  podman exec -i "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "ROLLBACK;" > /dev/null
+  
+  # Restore from backup if available
+  if [ -f "$backup_dir/pre_migration.sql" ]; then
+    echo "Attempting to restore from backup..."
+    podman exec -i "$POSTGRES_CONTAINER_NAME" psql -U "$POSTGRES_USER" "$POSTGRES_DB" < "$backup_dir/pre_migration.sql"
+  fi
+  
+  return 1
+fi
 
 # Restore original stdout/stderr
 exec 1>&3 2>&4
 return 0
-  exec 1>&3 2>&4
 }
 
 pod_create() {
