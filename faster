@@ -1184,22 +1184,22 @@ db() {
 
   # Run Django migrations
   run_django_migrations || return 1
+# Run FastAPI/Alembic migrations
+echo "Running FastAPI/Alembic migrations..."
 
-  # Run FastAPI/Alembic migrations with enhanced error handling
-  echo "Running FastAPI/Alembic migrations..."
-  
-  # Ensure migrations directory exists with proper permissions
-  echo "Setting up Alembic migrations directory..."
-  if ! podman run -it --rm --pod "$POD_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -w /app/main \
-    "$PYTHON_IMAGE" bash -c \
-    "mkdir -p migrations/versions && chmod -R 777 migrations/"; then
-    echo "ERROR: Failed to set up migrations directory"
-    return 1
-  fi
+# Ensure migrations directory exists with proper permissions
+echo "Setting up Alembic migrations directory..."
+if ! podman run -it --rm --pod "$POD_NAME" \
+  -v "$PROJECT_DIR:/app:z" \
+  -w /app/main \
+  "$PYTHON_IMAGE" bash -c \
+  "mkdir -p migrations/versions && chmod -R 777 migrations/"; then
+  echo "ERROR: Failed to set up migrations directory"
+  return 1
+fi
 
-  # Run Alembic migrations with retry mechanism and enhanced error handling
+# Run Alembic migrations
+echo "Running Alembic migrations..."
   echo "Running Alembic migrations..."
   
   run_alembic_migrations() {
