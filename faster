@@ -948,46 +948,93 @@ pg() {
 }
 
 db() {
-  echo "Running database migrations..."
+  # Setup logging
+  mkdir -p "$SUPPORT_DIR/logs/migrations"
+  local LOG_FILE="$SUPPORT_DIR/logs/migrations/$(date +%Y%m%d_%H%M%S)_migration.log"
+  exec 3>&1 4>&2
+  exec 1> >(tee -a "$LOG_FILE")
+  exec 2> >(tee -a "$LOG_FILE" >&2)
 
-  # Function to check database connection
+  echo "Starting database migrations at $(date)"
+  echo "Logging to: $LOG_FILE"
+
+  # Enhanced database connection check with diagnostics
   check_db_connection() {
-    podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null
+    if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+      echo "Database connection failed. Checking status..."
+      podman logs --tail 50 "$POSTGRES_CONTAINER_NAME"
+      return 1
+    fi
+    return 0
   }
 
-  # Function to wait for database
+  # Enhanced database wait function with better feedback
   wait_for_db() {
-    local retries=30
+    local max_retries=${DB_MAX_RETRIES:-30}
     local count=0
     echo "Waiting for database connection..."
-    until check_db_connection || [ $count -eq $retries ]; do
-      echo "Waiting for database... ($count/$retries)"
+    until check_db_connection || [ $count -eq $max_retries ]; do
+      echo "Attempt $((count + 1))/$max_retries: Waiting for database..."
+      if [ $((count % 5)) -eq 0 ]; then
+        echo "Checking database container status..."
+        podman container inspect "$POSTGRES_CONTAINER_NAME" | grep -E "Status|Error|Running"
+      fi
       sleep 2
       count=$((count + 1))
     done
 
-    if [ $count -eq $retries ]; then
-      echo "Database connection timeout"
+    if [ $count -eq $max_retries ]; then
+      echo "ERROR: Database connection timeout after $max_retries attempts"
+      echo "Last known container status:"
+      podman container inspect "$POSTGRES_CONTAINER_NAME"
       return 1
     fi
-    echo "Database is ready"
+    echo "Database is ready and accepting connections"
     return 0
   }
 
-  # Export environment variables for migrations
+  # Create database backup
+  create_backup() {
+    local backup_type=$1
+    local backup_file="$SUPPORT_DIR/db_backup_${backup_type}_$(date +%Y%m%d_%H%M%S).sql"
+    echo "Creating backup before ${backup_type} migrations..."
+    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > "$backup_file"; then
+      echo "Backup created successfully at: $backup_file"
+    else
+      echo "WARNING: Failed to create backup"
+      return 1
+    fi
+  }
+
+  # Export all necessary environment variables
   export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
   export POSTGRES_USER="$POSTGRES_USER"
   export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
   export POSTGRES_DB="$POSTGRES_DB"
+  export POSTGRES_PORT="5432"
+  export POOL_SIZE="5"
+  export MAX_OVERFLOW="10"
+  export POOL_TIMEOUT="30"
+  export POOL_RECYCLE="1800"
+  export CONNECT_TIMEOUT="10"
 
-  # Wait for database to be ready
+  # Wait for database with enhanced error handling
   if ! wait_for_db; then
-    echo "Failed to connect to database. Please check database container status."
+    echo "ERROR: Failed to establish database connection"
+    echo "Troubleshooting steps:"
+    echo "1. Check if PostgreSQL container is running:"
+    podman ps | grep "$POSTGRES_CONTAINER_NAME"
+    echo "2. Verify PostgreSQL logs:"
+    podman logs --tail 100 "$POSTGRES_CONTAINER_NAME"
+    echo "3. Check network connectivity:"
+    podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -h localhost
     return 1
   fi
 
-  # Run Django migrations with proper error handling
+  # Run Django migrations with enhanced error handling and backup
   echo "Running Django migrations..."
+  create_backup "django"
+
   if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
@@ -996,33 +1043,47 @@ db() {
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -w /app/django_auth \
     "$PYTHON_IMAGE" bash -c \
-    "source /app/support/venv/bin/activate && \
-     echo 'Making Django migrations...' && \
-     python manage.py makemigrations 2>&1 && \
-     echo 'Applying Django migrations...' && \
-     python manage.py migrate 2>&1"; then
-    echo "Django migrations failed. Please check the errors above."
+    "set -e
+     source /app/support/venv/bin/activate
+     
+     echo 'Checking Django migrations status...'
+     python manage.py showmigrations | tee /app/support/logs/migrations/django_status.log
+     
+     echo 'Making Django migrations...'
+     python manage.py makemigrations --check 2>&1 || {
+       echo 'Changes detected, creating migrations...'
+       python manage.py makemigrations 2>&1
+     }
+     
+     echo 'Applying Django migrations...'
+     python manage.py migrate --plan | tee /app/support/logs/migrations/django_plan.log
+     python manage.py migrate 2>&1 | tee /app/support/logs/migrations/django_apply.log
+     
+     echo 'Verifying Django models...'
+     python manage.py check --deploy 2>&1 | tee /app/support/logs/migrations/django_check.log"; then
+    echo "ERROR: Django migrations failed. Check logs in support/logs/migrations/"
     return 1
   fi
 
   echo "Django migrations completed successfully."
   sleep 2
 
+  # Run FastAPI/Alembic migrations with enhanced error handling and backup
   echo "Running FastAPI/Alembic migrations..."
+  create_backup "alembic"
   
-  # Create migrations directory and set permissions
+  # Ensure migrations directory exists with proper permissions
   echo "Setting up Alembic migrations directory..."
   if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app/main \
     "$PYTHON_IMAGE" bash -c \
-    "mkdir -p migrations/versions && \
-     chmod -R 777 migrations/"; then
-    echo "Failed to set up migrations directory"
+    "mkdir -p migrations/versions && chmod -R 777 migrations/"; then
+    echo "ERROR: Failed to set up migrations directory"
     return 1
   fi
 
-  # Run Alembic migrations with enhanced error handling
+  # Run Alembic migrations with comprehensive error handling and logging
   echo "Running Alembic migrations..."
   if ! podman run -it --rm --pod "$POD_NAME" \
     -v "$PROJECT_DIR:/app:z" \
@@ -1033,26 +1094,45 @@ db() {
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -e "PYTHONPATH=/app/main" \
     "$PYTHON_IMAGE" bash -c \
-    "source /app/support/venv/bin/activate && \
-     echo 'Verifying SQLModel imports...' && \
-     python -c 'from schemas import Todo' && \
-     echo 'Checking for existing migrations...' && \
-     if [ ! \"\$(ls -A migrations/versions/)\" ]; then \
-       echo 'Creating initial migration...' && \
-       alembic revision --autogenerate -m 'initial' && \
-       echo 'Applying initial migration...' && \
-       alembic upgrade head; \
-     else \
-       echo 'Detecting schema changes...' && \
-       alembic revision --autogenerate -m \"update_\$(date +%Y%m%d_%H%M%S)\" && \
-       echo 'Applying migrations...' && \
-       alembic upgrade head; \
-     fi" 2>&1; then
-    echo "Alembic migrations failed. Please check the errors above."
+    "set -e
+     source /app/support/venv/bin/activate
+     
+     echo 'Verifying SQLModel imports...'
+     python -c 'from schemas import Todo'
+     
+     echo 'Checking current database status...'
+     alembic current 2>&1 | tee /app/support/logs/migrations/alembic_current.log
+     
+     echo 'Verifying alembic configuration...'
+     alembic check 2>&1 | tee /app/support/logs/migrations/alembic_check.log
+     
+     echo 'Checking for existing migrations...'
+     if [ ! \"\$(ls -A migrations/versions/)\" ]; then
+       echo 'Creating initial migration...'
+       alembic revision --autogenerate -m 'initial' 2>&1 | tee /app/support/logs/migrations/alembic_initial.log
+       echo 'Applying initial migration...'
+       alembic upgrade head 2>&1 | tee /app/support/logs/migrations/alembic_upgrade.log
+     else
+       echo 'Detecting schema changes...'
+       alembic revision --autogenerate -m \"update_\$(date +%Y%m%d_%H%M%S)\" 2>&1 | tee /app/support/logs/migrations/alembic_revision.log
+       echo 'Reviewing migration plan...'
+       alembic heads | tee /app/support/logs/migrations/alembic_heads.log
+       alembic history | tee /app/support/logs/migrations/alembic_history.log
+       echo 'Applying migrations...'
+       alembic upgrade head 2>&1 | tee /app/support/logs/migrations/alembic_upgrade.log
+     fi
+     
+     echo 'Verifying database schema...'
+     python -c 'from db import check_database_health; import asyncio; asyncio.run(check_database_health())' 2>&1 | tee /app/support/logs/migrations/db_health_check.log"; then
+    echo "ERROR: Alembic migrations failed. Check logs in support/logs/migrations/"
     return 1
   fi
 
-  echo "Database migrations completed successfully."
+  echo "All database migrations completed successfully at $(date)"
+  echo "Migration logs available in: $LOG_FILE"
+  
+  # Restore original stdout/stderr
+  exec 1>&3 2>&4
 }
 
 pod_create() {
