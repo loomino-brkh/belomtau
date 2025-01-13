@@ -1081,32 +1081,6 @@ db() {
     return 0
   }
 
-  # Enhanced backup function with compression and rotation
-  create_backup() {
-    local backup_type=$1
-    local backup_dir="$SUPPORT_DIR/backups"
-    local backup_file="$backup_dir/db_backup_${backup_type}_$(date +%Y%m%d_%H%M%S).sql.gz"
-    local max_backups=5
-
-    # Create backup directory if it doesn't exist
-    mkdir -p "$backup_dir"
-
-    echo "Creating compressed backup before ${backup_type} migrations..."
-    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > "$backup_file"; then
-        echo "Backup created successfully at: $backup_file"
-        
-        # Rotate old backups
-        local old_backups=$(ls -t "$backup_dir"/db_backup_${backup_type}_*.sql.gz 2>/dev/null | tail -n +$((max_backups + 1)))
-        if [ ! -z "$old_backups" ]; then
-            echo "Removing old backups..."
-            echo "$old_backups" | xargs rm -f
-        fi
-    else
-        echo "WARNING: Failed to create backup"
-        return 1
-    fi
-  }
-
   # Export all necessary environment variables from secrets
   export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
   export POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB
@@ -1145,9 +1119,8 @@ db() {
     return 1
   fi
 
-  # Run Django migrations with enhanced error handling, backup, and retry mechanism
+  # Run Django migrations with enhanced error handling and retry mechanism
   echo "Running Django migrations..."
-  create_backup "django"
 
   run_django_migrations() {
     local max_retries=3
@@ -1193,9 +1166,8 @@ db() {
   echo "Django migrations completed successfully."
   sleep 2
 
-  # Run FastAPI/Alembic migrations with enhanced error handling and backup
+  # Run FastAPI/Alembic migrations with enhanced error handling
   echo "Running FastAPI/Alembic migrations..."
-  create_backup "alembic"
   
   # Ensure migrations directory exists with proper permissions
   echo "Setting up Alembic migrations directory..."
