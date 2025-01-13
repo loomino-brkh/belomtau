@@ -1,5 +1,5 @@
 #!/bin/bash
-# ---- Configuration -------
+# Load environment variables
 HOST_DOMAIN="api.var.my.id"
 PORT1="8080"  # Nginx port
 PORT2="8000"  # FastAPI port
