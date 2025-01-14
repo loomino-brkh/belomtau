@@ -40,8 +40,11 @@ fi
 # Get current branch name, default to master/main if no commits exist
 current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
 
-# Fetch from remote silently
-git fetch &>/dev/null
+# Fetch from remote silently with force to update refs
+git fetch --force &>/dev/null
+
+# Reset any uncommitted changes
+git reset --hard &>/dev/null
 
 # Check if we have any commits
 has_commits=false
@@ -68,9 +71,6 @@ else
 fi
 
 echo "Changes detected, syncing with remote in: $REPO_DIR"
-
-# Stash any uncommitted changes to tracked files
-git stash -q
 
 # Save a list of files being tracked by git
 tracked_files=""
@@ -100,8 +100,8 @@ if [ -n "$ignored_items" ]; then
   done <<< "$ignored_items"
 fi
 
-# Clean working directory, excluding ignored files
-git clean -fd
+# Force clean working directory, excluding ignored files
+git clean -fd --force
 
 # Pull changes from remote with auto conflict resolution favoring remote changes
 pull_output=$(git pull --strategy=recursive --strategy-option=theirs "$remote_name" "$current_branch" 2>&1)
@@ -118,15 +118,10 @@ fi
 if [ $pull_status -ne 0 ]; then
   # Attempt to abort any failed merge
   git merge --abort &>/dev/null || true
-  # Restore stashed changes if pull fails
-  git stash pop -q 2>/dev/null
   echo "Pull failed in: $REPO_DIR"
   echo "Error: $pull_output"
   exit 1
 fi
-
-# Try to restore stashed changes, ignore if stash was empty
-git stash pop -q 2>/dev/null || true
 
 # Final cleanup: Remove untracked files that aren't ignored or tracked
 git status --untracked-files=normal --porcelain | grep '^??' | cut -c4- | while IFS= read -r item; do
