@@ -4,7 +4,7 @@ HOST_DOMAIN="educto.brkh.work"
 PORT="8080"
 
 APP_NAME="$2"
-PROJECT_DIR="$HOME/eskrim/vue_${APP_NAME}"
+PROJECT_DIR="$HOME/projects/vue_${APP_NAME}"
 
 NODE_IMAGE="docker.io/library/node:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
