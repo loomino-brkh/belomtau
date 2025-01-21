@@ -1269,11 +1269,15 @@ create_user() {
 }
 
 # Check if the command exists as a function
-if [ "$(type -t "$COMMAND")" = "function" ]; then
-  # Execute the command
+if [ "$COMMAND" = "run_cmd" ]; then
+  # If command is run_cmd, pass all remaining arguments to it
+  shift 2  # Remove APP_NAME and COMMAND
+  run_cmd "$@"
+elif [ "$(type -t "$COMMAND")" = "function" ]; then
+  # Execute other commands normally
   $COMMAND
 else
   echo "Error: Unknown command '$COMMAND'"
-  echo "Available commands: init, start, stop, db, pg, cek, create_user"
+  echo "Available commands: init, start, stop, db, pg, cek, create_user, run_cmd"
   exit 1
 fi
