@@ -1037,7 +1037,7 @@ run_cmd() {
     -v "$ROOT_DIR:/root:z" \
     -v "$PROJECT_DIR:/app:z" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c $@
+    "$PYTHON_IMAGE" bash -c "$@"
 }
 
 pg() {
