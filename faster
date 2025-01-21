@@ -1039,14 +1039,9 @@ run_interact() {
 }
 
 run_cmd() {
-  echo "Executing command in interactive container..."
-  if ! podman container exists "$INTERACT_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$INTERACT_CONTAINER_NAME")" != "true" ]; then
-    echo "Interactive container is not running. Please start the services first."
-    return 1
-  fi
-
-  # Execute command without suppressing output
-  podman exec -it "$INTERACT_CONTAINER_NAME" bash -c "source /app/support/venv/bin/activate && $1"
+  podman exec -it "$INTERACT_CONTAINER_NAME" \
+  bash -c \
+  "source /app/support/venv/bin/activate && $@"
 }
 
 pg() {
