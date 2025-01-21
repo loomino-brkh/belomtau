@@ -1044,10 +1044,13 @@ run_cmd() {
     echo "Interactive container is not running. Please start the services first."
     return 1
   fi
-  
-  podman exec -it "$INTERACT_CONTAINER_NAME" bash -c "
-    source /app/support/venv/bin/activate 2>/dev/null || true
-    $*"
+
+  # Execute command without suppressing output
+  podman exec -i "$INTERACT_CONTAINER_NAME" bash -c "
+    source /app/support/venv/bin/activate
+    set -x  # Print commands being executed
+    $*
+    set +x  # Turn off command printing"
 }
 
 pg() {
