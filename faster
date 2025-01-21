@@ -1048,7 +1048,7 @@ run_cmd() {
   # Execute command without suppressing output
   podman exec -i "$INTERACT_CONTAINER_NAME" bash -c "
     source /app/support/venv/bin/activate
-    $*"
+    $1"
 }
 
 pg() {
