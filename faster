@@ -1031,6 +1031,15 @@ run_interact() {
     "$PYTHON_IMAGE" bash -c "sleep infinity"
 }
 
+run_cmd() {
+  echo "Starting interactive container..."
+  podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+    -v "$ROOT_DIR:/root:z" \
+    -v "$PROJECT_DIR:/app:z" \
+    -w /app \
+    "$PYTHON_IMAGE" bash -c $@
+}
+
 pg() {
   echo "Starting pgAdmin container..."
   podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
