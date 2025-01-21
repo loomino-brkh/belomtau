@@ -1032,12 +1032,26 @@ run_interact() {
 }
 
 run_cmd() {
-  echo "Starting interactive container..."
-  podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+  echo "Running command in interactive container..."
+  # Kill existing container if it exists
+  if podman container exists "$INTERACT_CONTAINER_NAME"; then
+    podman rm -f "$INTERACT_CONTAINER_NAME" >/dev/null 2>&1
+  fi
+
+  # Run the command interactively with proper environment variables
+  podman run -it --rm --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
     -v "$ROOT_DIR:/root:z" \
     -v "$PROJECT_DIR:/app:z" \
+    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+    -e "POSTGRES_USER=$POSTGRES_USER" \
+    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+    -e "POSTGRES_DB=$POSTGRES_DB" \
+    -e "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" \
+    -e "REDIS_PASSWORD=$REDIS_PASSWORD" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c "$@"
+    "$PYTHON_IMAGE" bash -c "
+      source /app/support/venv/bin/activate 2>/dev/null || true
+      $*"
 }
 
 pg() {
