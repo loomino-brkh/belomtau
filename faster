@@ -1041,7 +1041,7 @@ run_interact() {
 run_cmd() {
   podman exec -it "$INTERACT_CONTAINER_NAME" \
   bash -c \
-  "source /app/support/venv/bin/activate && $@"
+  "source /app/support/venv/bin/activate; $@"
 }
 
 pg() {
