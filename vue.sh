@@ -96,6 +96,7 @@ run_node() {
 run_nginx() {
     podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
         -v "$PROJECT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+        -v "$PROJECT_DIR/dist:/www:ro" \
         "$NGINX_IMAGE"
 }
 
