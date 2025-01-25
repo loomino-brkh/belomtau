@@ -106,7 +106,7 @@ run_cfl_tunnel() {
         --token $(cat "$PROJECT_DIR/token")
 }
 
-build_node() {
+build() {
     podman run --rm \
         -v "$PROJECT_DIR:/app:z" \
         -w /app \
