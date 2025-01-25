@@ -106,6 +106,13 @@ run_cfl_tunnel() {
         --token $(cat "$PROJECT_DIR/token")
 }
 
+build_node() {
+    podman run --rm \
+        -v "$PROJECT_DIR:/app:z" \
+        -w /app \
+        "$NODE_IMAGE" sh -c "npm install && npm run build"
+}
+
 pod_create() {
     podman pod create --name "$POD_NAME" --network bridge
 }
