@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---- Configuration -------
-HOST_DOMAIN="educto.brkh.work"
+HOST_DOMAIN=""
 PORT="8080"
 
 APP_NAME="$1"
@@ -17,7 +17,7 @@ CFL_TUNNEL_CONTAINER_NAME="${APP_NAME}_cfltunnel"
 init() {
     [ ! -d "$PROJECT_DIR" ] && mkdir -p "$PROJECT_DIR"
     [ ! -f "$PROJECT_DIR/token" ] && touch "$PROJECT_DIR/token"
-    
+
     # Create package.json
     # Create package.json if it doesn't exist
     if [ ! -f "$PROJECT_DIR/package.json" ]; then

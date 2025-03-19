@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---- Configuration -------
-HOST_DOMAIN="dev.var.my.id"
+HOST_DOMAIN=""
 PORT1="8080"
 PORT2="9080"
 
@@ -118,7 +118,7 @@ server {
     location /media/ {
         alias /www/media/;
     }
-    
+
     location /api/ {
         proxy_pass http://127.0.0.1:8000/api/;
         proxy_set_header Host \$host;
