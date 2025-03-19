@@ -64,7 +64,7 @@ if [ ! -f "${SUPPORT_DIR}/secrets.env" ]; then
     pg_db="${APP_NAME}_db"
     django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
     redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
-    
+
     cat > "${SUPPORT_DIR}/secrets.env" <<SECRETS
 # Database credentials
 POSTGRES_USER=$pg_user
@@ -815,7 +815,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-    
+
     location /admin/ {
         proxy_pass http://127.0.0.1:8001/admin/;
         proxy_set_header Host \$host;
@@ -912,7 +912,7 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     if configuration is not None:
         configuration["sqlalchemy.url"] = get_url()
-    
+
     connectable = engine_from_config(
         configuration or {},
         prefix="sqlalchemy.",
@@ -1087,13 +1087,13 @@ db() {
       echo 'Activating virtual environment...'
       source /app/support/venv/bin/activate
       cd /app/django_auth
-      
+
       echo 'Making Django migrations...'
       python manage.py makemigrations
-      
+
       echo 'Applying Django migrations...'
       python manage.py migrate
-      
+
       echo 'Django migrations completed successfully.'
     " || {
       echo "Django migration failed."
@@ -1111,19 +1111,19 @@ db() {
       set -e
       echo 'Activating virtual environment...'
       source /app/support/venv/bin/activate
-      cd /app/main
-      
+      cd /app/
+
       if [ ! -d 'migrations/versions' ]; then
         echo 'Creating migrations directory...'
         mkdir -p migrations/versions
       fi
-      
+
       echo 'Creating new Alembic migration...'
       alembic -c alembic.ini revision --autogenerate -m 'auto_migration'
-      
+
       echo 'Upgrading database to latest version...'
       alembic -c alembic.ini upgrade head
-      
+
       echo 'FastAPI migrations completed successfully.'
     " || {
       echo "FastAPI migration failed."
@@ -1179,7 +1179,6 @@ start() {
   pod_create
   esse
   sleep 10
-  db
 }
 
 cek() {
@@ -1224,7 +1223,7 @@ create_user() {
   if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
     echo "PostgreSQL is not ready. Attempting to restart..."
     podman restart "$POSTGRES_CONTAINER_NAME"
-    
+
     # Wait for PostgreSQL to be ready
     for i in {1..30}; do
       if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
