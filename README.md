@@ -1,6 +1,6 @@
 # Belomtau
 
-Welcome to the Belomtau project! This repository contains a collection of scripts and configurations for setting up and managing various development environments using Podman containers. This is a personal project and not intended for commercial use. The configurations and scripts reflect my personal preferences and setup.
+Welcome to the Belomtau project! This repository contains a collection of scripts and configurations for setting up and managing various development environments using Podman containers. This is a personal project and not intended for commercial use. The configurations and scripts reflect my personal preferences and setup. Keywords: Podman, Django, FastAPI, Vue.js, PostgreSQL, Redis, Nginx, Cloudflare Tunnel, development environment, automation.
 
 ## Table of Contents
 
@@ -111,7 +111,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 # Belomtau
 
-Selamat datang di proyek Belomtau! Repositori ini berisi kumpulan skrip dan konfigurasi untuk mengatur dan mengelola berbagai lingkungan pengembangan menggunakan kontainer Podman. Ini adalah proyek pribadi dan tidak dimaksudkan untuk penggunaan komersial. Konfigurasi dan skrip mencerminkan preferensi dan pengaturan pribadi saya.
+Selamat datang di proyek Belomtau! Repositori ini berisi kumpulan skrip dan konfigurasi untuk mengatur dan mengelola berbagai lingkungan pengembangan menggunakan kontainer Podman. Ini adalah proyek pribadi dan tidak dimaksudkan untuk penggunaan komersial. Konfigurasi dan skrip mencerminkan preferensi dan pengaturan pribadi saya. Kata kunci: Podman, Django, FastAPI, Vue.js, PostgreSQL, Redis, Nginx, Cloudflare Tunnel, lingkungan pengembangan, otomatisasi.
 
 ## Daftar Isi
 
