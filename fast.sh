@@ -1548,6 +1548,7 @@ run_cfl_tunnel() {
   echo "Starting Cloudflare tunnel ($CFL_TUNNEL_CONTAINER_NAME)..."
   podman run --network=host --dns 1.1.1.1 --dns 8.8.8.8 -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
     --restart=always \
+    -v /etc/resolv.conf:/etc/resolv.conf:ro \
     "$CLOUDFLARED_IMAGE" tunnel --no-autoupdate run \
     --token $(cat "$SUPPORT_DIR/token") || { echo "Failed to start Cloudflare tunnel container"; return 1; }
 }
