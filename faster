@@ -1035,7 +1035,7 @@ run_interact() {
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -e "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" \
     -w /app \
-    "$PYTHON_IMAGE" bash -c "sleep infinity"
+    "$INTERACT_IMAGE" bash -c "sleep infinity"
 }
 
 run_cmd() {
