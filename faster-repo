@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Check if command argument is provided
+if [ -z "$1" ]; then
+    echo "Error: App name is required"
+    echo "Usage: $0 <app_name> <repo_path_or_url>"
+    exit 1
+fi
+
+if [ -z "$2" ]; then
+    echo "Error: Git repository path or URL is required" 
+    echo "Usage: $0 <app_name> <repo_path_or_url>"
+    exit 1
+fi
+
+APP_NAME="$1"
+REPO_SOURCE="$2"
+PROJECT_DIR="$HOME/projects/api_${APP_NAME}"
+SUPPORT_DIR="${PROJECT_DIR}/support"
+
+# Create project directory if it doesn't exist
+mkdir -p "$PROJECT_DIR"
+
+# Clone/copy repository
+if [[ "$REPO_SOURCE" =~ ^http[s]?:// ]] || [[ "$REPO_SOURCE" =~ ^git@ ]]; then
+    # Clone remote repository
+    git clone "$REPO_SOURCE" "$PROJECT_DIR"
+else
+    # Copy local repository
+    cp -r "$REPO_SOURCE"/* "$PROJECT_DIR"
+fi
+
+# Create support subdirectories
+mkdir -p "$SUPPORT_DIR"/{db_data,redis_data,pgadmin,logs,venv,backups}
+
+# Generate secrets if not exists
+if [ ! -f "${SUPPORT_DIR}/secrets.env" ]; then
+    pg_user="${APP_NAME}_user"
+    pg_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    pg_db="${APP_NAME}_db"
+    django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+    redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
+
+    cat > "${SUPPORT_DIR}/secrets.env" <<SECRETS
+# Database credentials
+POSTGRES_USER=$pg_user
+POSTGRES_PASSWORD=$pg_pass
+POSTGRES_DB=$pg_db
+
+# Django settings
+DJANGO_SECRET_KEY=$django_key
+
+# Redis settings
+REDIS_PASSWORD=$redis_pass
+SECRETS
+    chmod 600 "${SUPPORT_DIR}/secrets.env"
+fi
+
+# Create env.conf if not exists
+if [ ! -f "${SUPPORT_DIR}/env.conf" ]; then
+    cat > "${SUPPORT_DIR}/env.conf" <<EOL
+# Application settings
+HOST_DOMAIN="api.var.my.id"
+PORT1="8080"  # Nginx port
+PORT2="8000"  # FastAPI port
+PORT3="8001"  # Django port
+
+# Database settings
+POSTGRES_IMAGE="docker.io/library/postgres:16"
+PYTHON_IMAGE="docker.io/library/python:latest"
+REDIS_IMAGE="docker.io/library/redis:latest"
+NGINX_IMAGE="docker.io/library/nginx:latest"
+PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
+
+# Path settings
+ROOT_DIR="$HOME/.root_dir"
+EOL
+fi
+
+# Create empty token file if not exists
+[ ! -f "$SUPPORT_DIR/token" ] && touch "$SUPPORT_DIR/token"
+
+# Set correct permissions
+chmod -R 755 "$SUPPORT_DIR"
+chmod 600 "$SUPPORT_DIR/secrets.env"
+chmod 777 "$SUPPORT_DIR/pgadmin"
+
+echo "Support directory setup completed successfully"
+echo "Project is ready at: $PROJECT_DIR"
