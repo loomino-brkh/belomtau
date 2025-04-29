@@ -1046,7 +1046,7 @@ run_cmd() {
 
 pg() {
   echo "Starting pgAdmin container..."
-  podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+  podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
     -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
     -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
     -e "PGADMIN_LISTEN_PORT=5050" \
@@ -1178,13 +1178,13 @@ esse() {
 start() {
   pod_create
   esse
-  sleep 10
+  pg
 }
 
 cek() {
   if podman pod exists "$POD_NAME"; then
     if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}"; do
         if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
           echo "Container $container is not running. Restarting..."
           podman start "$container" || {
