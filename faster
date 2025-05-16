@@ -38,7 +38,7 @@ ENV_FILE="${SUPPORT_DIR}/env.conf"
 if [ ! -f "$ENV_FILE" ]; then
     echo "Creating environment configuration..."
     mkdir -p "$SUPPORT_DIR"
-    cat > "$ENV_FILE" <<EOL
+    cat >"$ENV_FILE" <<EOL
 # Application settings
 HOST_DOMAIN="api.var.my.id"
 PORT1="8080"  # Nginx port
@@ -65,7 +65,7 @@ if [ ! -f "${SUPPORT_DIR}/secrets.env" ]; then
     django_key=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
     redis_pass=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)
 
-    cat > "${SUPPORT_DIR}/secrets.env" <<SECRETS
+    cat >"${SUPPORT_DIR}/secrets.env" <<SECRETS
 # Database credentials
 POSTGRES_USER=$pg_user
 POSTGRES_PASSWORD=$pg_pass
@@ -95,7 +95,7 @@ unset_secrets() {
 trap unset_secrets EXIT
 
 # Check if podman is installed
-if ! command -v podman &> /dev/null; then
+if ! command -v podman &>/dev/null; then
     echo "Error: podman is not installed"
     exit 1
 fi
@@ -106,8 +106,8 @@ DB_FILE="${MAIN_DIR}/db.py"
 SCHEMAS_FILE="${MAIN_DIR}/schemas.py"
 
 rev() {
-  echo "Creating Python virtual environment and installing requirements..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" -v "$ROOT_DIR:/root:z" "$PYTHON_IMAGE" bash -c "
+    echo "Creating Python virtual environment and installing requirements..."
+    podman run --rm -v "$PROJECT_DIR:/app:z" -v "$ROOT_DIR:/root:z" "$PYTHON_IMAGE" bash -c "
     apt-get update && \
     apt-get install -y curl build-essential && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
@@ -119,40 +119,40 @@ rev() {
 }
 
 init() {
-  # Check if project directory already exists
-  if [ -d "$PROJECT_DIR" ]; then
-    echo "Warning: Project directory already exists. Some files may be overwritten."
-  fi
-
-  echo "Creating project directories..."
-  # Create all required directories
-  for dir in \
-    "$PROJECT_DIR" \
-    "$SUPPORT_DIR" \
-    "$MAIN_DIR" \
-    "$MAIN_DIR/database" \
-    "$MAIN_DIR/endpoints" \
-    "$MAIN_DIR/core" \
-    "$ROOT_DIR" \
-    "$DJANGO_DIR" \
-    "$DJANGO_DIR/static" \
-    "$SUPPORT_DIR/db_data" \
-    "$SUPPORT_DIR/redis_data" \
-    "$SUPPORT_DIR/pgadmin" \
-    "$SUPPORT_DIR/logs"; do
-    if [ ! -d "$dir" ]; then
-      mkdir -p "$dir"
+    # Check if project directory already exists
+    if [ -d "$PROJECT_DIR" ]; then
+        echo "Warning: Project directory already exists. Some files may be overwritten."
     fi
-  done
 
-  # Create token file if it doesn't exist
-  [ ! -f "$SUPPORT_DIR/token" ] && touch "$SUPPORT_DIR/token"
+    echo "Creating project directories..."
+    # Create all required directories
+    for dir in \
+        "$PROJECT_DIR" \
+        "$SUPPORT_DIR" \
+        "$MAIN_DIR" \
+        "$MAIN_DIR/database" \
+        "$MAIN_DIR/endpoints" \
+        "$MAIN_DIR/core" \
+        "$ROOT_DIR" \
+        "$DJANGO_DIR" \
+        "$DJANGO_DIR/static" \
+        "$SUPPORT_DIR/db_data" \
+        "$SUPPORT_DIR/redis_data" \
+        "$SUPPORT_DIR/pgadmin" \
+        "$SUPPORT_DIR/logs"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+        fi
+    done
 
-  # Set permissions for pgadmin directory
-  chmod 777 "$SUPPORT_DIR/pgadmin"
+    # Create token file if it doesn't exist
+    [ ! -f "$SUPPORT_DIR/token" ] && touch "$SUPPORT_DIR/token"
 
-  echo "Creating .gitignore..."
-  cat >"$PROJECT_DIR/.gitignore" <<EOL
+    # Set permissions for pgadmin directory
+    chmod 777 "$SUPPORT_DIR/pgadmin"
+
+    echo "Creating .gitignore..."
+    cat >"$PROJECT_DIR/.gitignore" <<EOL
 # Project specific
 support/db_data/
 support/redis_data/
@@ -220,8 +220,8 @@ Thumbs.db
 versions/
 EOL
 
-  echo "Creating requirements.txt..."
-  cat >"$REQUIREMENTS_FILE" <<EOL
+    echo "Creating requirements.txt..."
+    cat >"$REQUIREMENTS_FILE" <<EOL
 fastapi
 uvicorn
 sqlmodel
@@ -252,23 +252,23 @@ gunicorn
 django-redis
 EOL
 
-  rev
+    rev
 
-  # Initialize Django project
-  echo "Initializing Django project..."
-  sleep 2
-  podman run -it --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
+    # Initialize Django project
+    echo "Initializing Django project..."
+    sleep 2
+    podman run -it --rm -v "$PROJECT_DIR:/app:z" "$PYTHON_IMAGE" bash -c "
     source /app/support/venv/bin/activate && \
     cd /app/django_auth && \
     django-admin startproject auth_project . && \
     python manage.py startapp authentication"
 
-  # Wait a moment to ensure files are created
-  sleep 10
+    # Wait a moment to ensure files are created
+    sleep 10
 
-  # Create Django settings
-  echo "Creating Django settings..."
-  cat >"$DJANGO_DIR/auth_project/settings.py" <<EOL
+    # Create Django settings
+    echo "Creating Django settings..."
+    cat >"$DJANGO_DIR/auth_project/settings.py" <<EOL
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -385,8 +385,8 @@ CACHES = {
 CORS_ALLOW_ALL_ORIGINS = True
 EOL
 
-  echo "Creating Django authentication views..."
-  cat >"$DJANGO_DIR/authentication/views.py" <<EOL
+    echo "Creating Django authentication views..."
+    cat >"$DJANGO_DIR/authentication/views.py" <<EOL
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -434,8 +434,8 @@ def cached_view(request):
     return Response({'message': 'This response is cached for 15 minutes'})
 EOL
 
-  echo "Creating Django project URLs..."
-  cat >"$DJANGO_DIR/auth_project/urls.py" <<EOL
+    echo "Creating Django project URLs..."
+    cat >"$DJANGO_DIR/auth_project/urls.py" <<EOL
 from django.contrib import admin
 from django.urls import path, include
 
@@ -445,9 +445,8 @@ urlpatterns = [
 ]
 EOL
 
-
-  echo "Creating Django URLs..."
-  cat >"$DJANGO_DIR/authentication/urls.py" <<EOL
+    echo "Creating Django URLs..."
+    cat >"$DJANGO_DIR/authentication/urls.py" <<EOL
 from django.urls import path
 from . import views
 
@@ -458,8 +457,8 @@ urlpatterns = [
 ]
 EOL
 
-  echo "Creating Django run script..."
-  cat >"$DJANGO_DIR/run.sh" <<EOL
+    echo "Creating Django run script..."
+    cat >"$DJANGO_DIR/run.sh" <<EOL
 #!/bin/bash
 source /app/support/venv/bin/activate
 cd /app/django_auth
@@ -493,11 +492,11 @@ exec gunicorn auth_project.wsgi:application \
     --reload
 EOL
 
-  chmod 755 "$DJANGO_DIR/run.sh"
+    chmod 755 "$DJANGO_DIR/run.sh"
 
-  # Create core directory and move schemas.py there
-  echo "Creating core/schemas.py..."
-  cat >"$MAIN_DIR/core/schemas.py" <<EOL
+    # Create core directory and move schemas.py there
+    echo "Creating core/schemas.py..."
+    cat >"$MAIN_DIR/core/schemas.py" <<EOL
 from sqlmodel import SQLModel, Field
 from typing import Optional
 from datetime import datetime
@@ -526,9 +525,9 @@ class TodoUpdate(SQLModel):
     completed: Optional[bool] = None
 EOL
 
-  # Create database directory and move db.py there
-  echo "Creating database/db.py..."
-  cat >"$MAIN_DIR/database/db.py" <<EOL
+    # Create database directory and move db.py there
+    echo "Creating database/db.py..."
+    cat >"$MAIN_DIR/database/db.py" <<EOL
 from sqlmodel import SQLModel, create_engine, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.pool import QueuePool
@@ -671,10 +670,9 @@ def init_db():
         raise
 EOL
 
-
-  # Create endpoints directory and move todo endpoints there
-  echo "Creating endpoints/todos.py..."
-  cat >"$MAIN_DIR/endpoints/todos.py" <<EOL
+    # Create endpoints directory and move todo endpoints there
+    echo "Creating endpoints/todos.py..."
+    cat >"$MAIN_DIR/endpoints/todos.py" <<EOL
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from typing import List
@@ -705,9 +703,9 @@ async def get_todo(todo_id: int, db: Session = Depends(get_db)):
     return todo
 EOL
 
-  # Create core/auth.py for authentication
-  echo "Creating core/auth.py..."
-  cat >"$MAIN_DIR/core/auth.py" <<EOL
+    # Create core/auth.py for authentication
+    echo "Creating core/auth.py..."
+    cat >"$MAIN_DIR/core/auth.py" <<EOL
 from fastapi import HTTPException, Header
 import os
 import requests
@@ -727,9 +725,9 @@ async def verify_token(authorization: str = Header(None)):
         raise HTTPException(status_code=503, detail="Authentication service unavailable")
 EOL
 
-  # Create main.py with updated imports
-  echo "Creating main.py..."
-  cat >"$MAIN_FILE" <<EOL
+    # Create main.py with updated imports
+    echo "Creating main.py..."
+    cat >"$MAIN_FILE" <<EOL
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_cache import FastAPICache
@@ -777,13 +775,13 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 EOL
 
-  # Create __init__.py files for Python packages
-  touch "$MAIN_DIR/core/__init__.py"
-  touch "$MAIN_DIR/database/__init__.py"
-  touch "$MAIN_DIR/endpoints/__init__.py"
+    # Create __init__.py files for Python packages
+    touch "$MAIN_DIR/core/__init__.py"
+    touch "$MAIN_DIR/database/__init__.py"
+    touch "$MAIN_DIR/endpoints/__init__.py"
 
-  echo "Creating uvicorn.sh..."
-  cat >"$SUPPORT_DIR/uvicorn.sh" <<EOL
+    echo "Creating uvicorn.sh..."
+    cat >"$SUPPORT_DIR/uvicorn.sh" <<EOL
 #!/bin/bash
 source /app/support/venv/bin/activate
 cd /app/main
@@ -800,10 +798,10 @@ exec uvicorn main:app \
   --reload-dir /app/main
 EOL
 
-  chmod 755 "$SUPPORT_DIR/uvicorn.sh"
+    chmod 755 "$SUPPORT_DIR/uvicorn.sh"
 
-  echo "Creating nginx.conf..."
-  cat >"$SUPPORT_DIR/nginx.conf" <<EOL
+    echo "Creating nginx.conf..."
+    cat >"$SUPPORT_DIR/nginx.conf" <<EOL
 server {
     listen $PORT1;
     server_name 127.0.0.1;
@@ -838,18 +836,18 @@ server {
 }
 EOL
 
-  echo "Initializing Alembic..."
-  podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
+    echo "Initializing Alembic..."
+    podman run --rm -v "$PROJECT_DIR:/app:z" -w /app "$PYTHON_IMAGE" bash -c "
     source /app/support/venv/bin/activate && \
     cd /app/main && \
     pip install alembic && \
     alembic init migrations"
 
-  # Update alembic.ini
-  ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
-  sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$MAIN_DIR/alembic.ini"
+    # Update alembic.ini
+    ESCAPED_PASSWORD=$(printf '%s\n' "$POSTGRES_PASSWORD" | sed -e 's/[\/&]/\\&/g')
+    sed -i "s|sqlalchemy.url = driver://user:pass@localhost/dbname|sqlalchemy.url = postgresql://${POSTGRES_USER}:${ESCAPED_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}|g" "$MAIN_DIR/alembic.ini"
 
-  # Update env.py with correct imports and configuration
+    # Update env.py with correct imports and configuration
     cat >"$MAIN_DIR/migrations/env.py" <<EOT
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
@@ -951,138 +949,138 @@ EOT
 }
 
 stop() {
-  echo "Stopping and removing pod..."
-  podman pod stop "$POD_NAME" || true
-  podman pod rm "$POD_NAME" || true
+    echo "Stopping and removing pod..."
+    podman pod stop "$POD_NAME" || true
+    podman pod rm "$POD_NAME" || true
 }
 
 run_postgres() {
-  echo "Starting PostgreSQL container..."
-  podman run -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
-    -e POSTGRES_DB="$POSTGRES_DB" \
-    -e POSTGRES_USER="$POSTGRES_USER" \
-    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -v "$SUPPORT_DIR/db_data:/var/lib/postgresql/data:z" \
-    "$POSTGRES_IMAGE"
+    echo "Starting PostgreSQL container..."
+    podman run -d --pod "$POD_NAME" --name "$POSTGRES_CONTAINER_NAME" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -v "$SUPPORT_DIR/db_data:/var/lib/postgresql/data:z" \
+        "$POSTGRES_IMAGE"
 }
 
 wait_for_postgres() {
-  echo "Waiting for PostgreSQL to be ready..."
-  for i in {1..30}; do
-    if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
-      echo "PostgreSQL is ready."
-      return 0
-    fi
-    echo "Waiting for PostgreSQL... ($i/30)"
-    sleep 2
-  done
-  echo "PostgreSQL did not become ready in time."
-  return 1
+    echo "Waiting for PostgreSQL to be ready..."
+    for i in {1..30}; do
+        if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+            echo "PostgreSQL is ready."
+            return 0
+        fi
+        echo "Waiting for PostgreSQL... ($i/30)"
+        sleep 2
+    done
+    echo "PostgreSQL did not become ready in time."
+    return 1
 }
 
 run_redis() {
-  echo "Starting Redis container..."
-  podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
-    -v "$SUPPORT_DIR/redis_data:/data:z" \
-    "$REDIS_IMAGE" --loglevel warning
+    echo "Starting Redis container..."
+    podman run -d --pod "$POD_NAME" --name "$REDIS_CONTAINER_NAME" \
+        -v "$SUPPORT_DIR/redis_data:/data:z" \
+        "$REDIS_IMAGE" --loglevel warning
 }
 
 run_nginx() {
-  echo "Starting Nginx container..."
-  podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
-    -v "$SUPPORT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
-    -v "$DJANGO_DIR/static:/www/django_auth/staticfiles:ro" \
-    "$NGINX_IMAGE"
+    echo "Starting Nginx container..."
+    podman run -d --pod "$POD_NAME" --name "$NGINX_CONTAINER_NAME" \
+        -v "$SUPPORT_DIR/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+        -v "$DJANGO_DIR/static:/www/django_auth/staticfiles:ro" \
+        "$NGINX_IMAGE"
 }
 
 run_cfl_tunnel() {
-  if [ ! -s "$SUPPORT_DIR/token" ]; then
-    echo "Error: Cloudflare tunnel token is empty. Please add your token to $SUPPORT_DIR/token"
-    return 1
-  fi
+    if [ ! -s "$SUPPORT_DIR/token" ]; then
+        echo "Error: Cloudflare tunnel token is empty. Please add your token to $SUPPORT_DIR/token"
+        return 1
+    fi
 
-  echo "Starting Cloudflare tunnel..."
-  podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
-    docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-    --token $(cat "$SUPPORT_DIR/token")
+    echo "Starting Cloudflare tunnel..."
+    podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
+        docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
+        --token $(cat "$SUPPORT_DIR/token")
 }
 
 run_uvicorn() {
-  echo "Starting Uvicorn container..."
-  podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
-    -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
-    -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
-    -e "POSTGRES_USER=$POSTGRES_USER" \
-    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -e "POSTGRES_DB=$POSTGRES_DB" \
-    -e "DJANGO_SECRET_KEY=$RANDOM_KEY" \
-    -w /app \
-    "$PYTHON_IMAGE" ./support/uvicorn.sh
+    echo "Starting Uvicorn container..."
+    podman run -d --pod "$POD_NAME" --name "$UVICORN_CONTAINER_NAME" \
+        -v "$PROJECT_DIR:/app:z" \
+        -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+        -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
+        -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
+        -e "POSTGRES_USER=$POSTGRES_USER" \
+        -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+        -e "POSTGRES_DB=$POSTGRES_DB" \
+        -e "DJANGO_SECRET_KEY=$RANDOM_KEY" \
+        -w /app \
+        "$PYTHON_IMAGE" ./support/uvicorn.sh
 }
 
 run_interact() {
-  echo "Starting interactive container..."
-  podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
-    -v "$ROOT_DIR:/root:z" \
-    -v "$PROJECT_DIR:/app:z" \
-    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
-    -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
-    -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
-    -e "POSTGRES_USER=$POSTGRES_USER" \
-    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -e "POSTGRES_DB=$POSTGRES_DB" \
-    -e "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" \
-    -w /app \
-    "$INTERACT_IMAGE" bash -c "sleep infinity"
+    echo "Starting interactive container..."
+    podman run -d --pod "$POD_NAME" --name "$INTERACT_CONTAINER_NAME" \
+        -v "$ROOT_DIR:/root:z" \
+        -v "$PROJECT_DIR:/app:z" \
+        -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+        -e "REDIS_CONTAINER_NAME=$REDIS_CONTAINER_NAME" \
+        -e "DJANGO_CONTAINER_NAME=$DJANGO_CONTAINER_NAME" \
+        -e "POSTGRES_USER=$POSTGRES_USER" \
+        -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+        -e "POSTGRES_DB=$POSTGRES_DB" \
+        -e "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" \
+        -w /app \
+        "$INTERACT_IMAGE" bash -c "sleep infinity"
 }
 
 run_cmd() {
-  podman exec -it "$INTERACT_CONTAINER_NAME" \
-  bash -c \
-  "source /app/support/venv/bin/activate; $*"
+    podman exec -it "$INTERACT_CONTAINER_NAME" \
+        bash -c \
+        "source /app/support/venv/bin/activate; $*"
 }
 
 pg() {
-  echo "Starting pgAdmin container..."
-  podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
-    -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
-    -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
-    -e "PGADMIN_LISTEN_PORT=5050" \
-    -v "$SUPPORT_DIR/pgadmin:/var/lib/pgadmin:z" \
-    "$PGADMIN_IMAGE"
+    echo "Starting pgAdmin container..."
+    podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+        -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "PGADMIN_LISTEN_PORT=5050" \
+        -v "$SUPPORT_DIR/pgadmin:/var/lib/pgadmin:z" \
+        "$PGADMIN_IMAGE"
 }
 
 db() {
-  echo "Running database migrations..."
+    echo "Running database migrations..."
 
-  # Check if the containers are running
-  if ! podman container exists "$INTERACT_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$INTERACT_CONTAINER_NAME")" != "true" ]; then
-    echo "Interactive container is not running. Please start the services first."
-    return 1
-  fi
+    # Check if the containers are running
+    if ! podman container exists "$INTERACT_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$INTERACT_CONTAINER_NAME")" != "true" ]; then
+        echo "Interactive container is not running. Please start the services first."
+        return 1
+    fi
 
-  if ! podman container exists "$POSTGRES_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER_NAME")" != "true" ]; then
-    echo "PostgreSQL container is not running. Please start the services first."
-    return 1
-  fi
+    if ! podman container exists "$POSTGRES_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER_NAME")" != "true" ]; then
+        echo "PostgreSQL container is not running. Please start the services first."
+        return 1
+    fi
 
-  # Wait for PostgreSQL to be ready
-  echo "Checking PostgreSQL connection..."
-  if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER"; then
-    echo "PostgreSQL is not ready. Please check the container status."
-    return 1
-  fi
+    # Wait for PostgreSQL to be ready
+    echo "Checking PostgreSQL connection..."
+    if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER"; then
+        echo "PostgreSQL is not ready. Please check the container status."
+        return 1
+    fi
 
-  # Run Django migrations
-  echo "Running Django migrations..."
-  podman exec -it \
-    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
-    -e POSTGRES_USER="$POSTGRES_USER" \
-    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -e POSTGRES_DB="$POSTGRES_DB" \
-    "$INTERACT_CONTAINER_NAME" bash -c "
+    # Run Django migrations
+    echo "Running Django migrations..."
+    podman exec -it \
+        -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        "$INTERACT_CONTAINER_NAME" bash -c "
       set -e
       echo 'Activating virtual environment...'
       source /app/support/venv/bin/activate
@@ -1098,18 +1096,18 @@ db() {
 
       echo 'Django migrations completed successfully.'
     " || {
-      echo "Django migration failed."
-      return 1
+        echo "Django migration failed."
+        return 1
     }
 
-  # Run FastAPI/Alembic migrations
-  echo "Running FastAPI migrations..."
-  podman exec -it \
-    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
-    -e POSTGRES_USER="$POSTGRES_USER" \
-    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -e POSTGRES_DB="$POSTGRES_DB" \
-    "$INTERACT_CONTAINER_NAME" bash -c "
+    # Run FastAPI/Alembic migrations
+    echo "Running FastAPI migrations..."
+    podman exec -it \
+        -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        "$INTERACT_CONTAINER_NAME" bash -c "
       set -e
       echo 'Activating virtual environment...'
       source /app/support/venv/bin/activate
@@ -1128,141 +1126,140 @@ db() {
 
       echo 'FastAPI migrations completed successfully.'
     " || {
-      echo "FastAPI migration failed."
-      return 1
+        echo "FastAPI migration failed."
+        return 1
     }
 
-  echo "All database migrations completed successfully."
+    echo "All database migrations completed successfully."
 }
 
 pod_create() {
-  echo "Creating pod..."
-  podman pod create --name "$POD_NAME" --network bridge
+    echo "Creating pod..."
+    podman pod create --name "$POD_NAME" --network bridge
 }
 
 run_django() {
-  echo "Starting Django container..."
-  podman run -d --pod "$POD_NAME" --name "$DJANGO_CONTAINER_NAME" \
-    -v "$PROJECT_DIR:/app:z" \
-    -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
-    -e "POSTGRES_USER=$POSTGRES_USER" \
-    -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -e "POSTGRES_DB=$POSTGRES_DB" \
-    -w /app \
-    "$PYTHON_IMAGE" ./django_auth/run.sh
+    echo "Starting Django container..."
+    podman run -d --pod "$POD_NAME" --name "$DJANGO_CONTAINER_NAME" \
+        -v "$PROJECT_DIR:/app:z" \
+        -e "POSTGRES_CONTAINER_NAME=$POSTGRES_CONTAINER_NAME" \
+        -e "POSTGRES_USER=$POSTGRES_USER" \
+        -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+        -e "POSTGRES_DB=$POSTGRES_DB" \
+        -w /app \
+        "$PYTHON_IMAGE" ./django_auth/run.sh
 }
 
 wait_for_django() {
-  echo "Waiting for Django to be ready..."
-  for i in {1..60}; do
-    if podman exec -it "$DJANGO_CONTAINER_NAME" curl -s http://127.0.0.1:8001/auth/login/ &>/dev/null; then
-      echo "Django is ready."
-      return 0
-    fi
-    sleep 2
-  done
-  echo "Django did not become ready in time."
-  exit 1
+    echo "Waiting for Django to be ready..."
+    for i in {1..60}; do
+        if podman exec -it "$DJANGO_CONTAINER_NAME" curl -s http://127.0.0.1:8001/auth/login/ &>/dev/null; then
+            echo "Django is ready."
+            return 0
+        fi
+        sleep 2
+    done
+    echo "Django did not become ready in time."
+    exit 1
 }
 
 esse() {
-  run_postgres || return 1
-  wait_for_postgres
-  run_redis || return 1
-  run_django || return 1
-  wait_for_django
-  run_uvicorn || return 1
-  run_nginx || return 1
-  run_cfl_tunnel || return 1
-  run_interact || return 1
+    run_postgres || return 1
+    wait_for_postgres
+    run_redis || return 1
+    run_django || return 1
+    wait_for_django
+    run_uvicorn || return 1
+    run_nginx || return 1
+    run_cfl_tunnel || return 1
+    run_interact || return 1
 }
 
 start() {
-  pod_create
-  esse
-  pg
+    pod_create
+    esse
 }
 
 cek() {
-  if podman pod exists "$POD_NAME"; then
-    if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-      for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}"; do
-        if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
-          echo "Container $container is not running. Restarting..."
-          podman start "$container" || {
-            echo "Failed to restart $container"
-            return 1
-          }
+    if podman pod exists "$POD_NAME"; then
+        if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+                if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
+                    echo "Container $container is not running. Restarting..."
+                    podman start "$container" || {
+                        echo "Failed to restart $container"
+                        return 1
+                    }
+                fi
+            done
+            echo "All containers are running."
+        else
+            echo "Pod is not running. Starting pod..."
+            podman pod start "$POD_NAME" || {
+                echo "Failed to start pod"
+                return 1
+            }
         fi
-      done
-      echo "All containers are running."
     else
-      echo "Pod is not running. Starting pod..."
-      podman pod start "$POD_NAME" || {
-        echo "Failed to start pod"
-        return 1
-      }
+        echo "Pod does not exist. Creating and starting..."
+        start
     fi
-  else
-    echo "Pod does not exist. Creating and starting..."
-    start
-  fi
 }
 
 create_user() {
-  # Check if pod exists and is running
-  if ! podman pod exists "$POD_NAME"; then
-    echo "Pod does not exist. Please start the services first using 'start' command"
-    return 1
-  fi
-
-  if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" != "Running" ]; then
-    echo "Pod is not running. Please start the services first using 'start' command"
-    return 1
-  fi
-
-  # Check if PostgreSQL container is running and ready
-  if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
-    echo "PostgreSQL is not ready. Attempting to restart..."
-    podman restart "$POSTGRES_CONTAINER_NAME"
-
-    # Wait for PostgreSQL to be ready
-    for i in {1..30}; do
-      if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
-        echo "PostgreSQL is now ready."
-        break
-      fi
-      if [ "$i" -eq 30 ]; then
-        echo "PostgreSQL failed to become ready. Please check the container logs:"
-        podman logs "$POSTGRES_CONTAINER_NAME"
+    # Check if pod exists and is running
+    if ! podman pod exists "$POD_NAME"; then
+        echo "Pod does not exist. Please start the services first using 'start' command"
         return 1
-      fi
-      echo "Waiting for PostgreSQL to become ready... ($i/30)"
-      sleep 2
-    done
-  fi
+    fi
 
-  # Ensure Django container is running and ready
-  if ! podman container exists "$DJANGO_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$DJANGO_CONTAINER_NAME")" != "true" ]; then
-    echo "Django container is not running. Attempting to restart..."
-    podman restart "$DJANGO_CONTAINER_NAME"
-    sleep 5
-  fi
+    if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" != "Running" ]; then
+        echo "Pod is not running. Please start the services first using 'start' command"
+        return 1
+    fi
 
-  # Export required environment variables
-  export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
-  export POSTGRES_USER="$POSTGRES_USER"
-  export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
-  export POSTGRES_DB="$POSTGRES_DB"
+    # Check if PostgreSQL container is running and ready
+    if ! podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+        echo "PostgreSQL is not ready. Attempting to restart..."
+        podman restart "$POSTGRES_CONTAINER_NAME"
 
-  # Use the interactive container to create a Django user with proper environment setup
-  echo "Creating a new Django user..."
-  podman exec -it \
-    -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
-    -e POSTGRES_USER="$POSTGRES_USER" \
-    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -e POSTGRES_DB="$POSTGRES_DB" \
-    "$INTERACT_CONTAINER_NAME" bash -c "
+        # Wait for PostgreSQL to be ready
+        for i in {1..30}; do
+            if podman exec -it "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
+                echo "PostgreSQL is now ready."
+                break
+            fi
+            if [ "$i" -eq 30 ]; then
+                echo "PostgreSQL failed to become ready. Please check the container logs:"
+                podman logs "$POSTGRES_CONTAINER_NAME"
+                return 1
+            fi
+            echo "Waiting for PostgreSQL to become ready... ($i/30)"
+            sleep 2
+        done
+    fi
+
+    # Ensure Django container is running and ready
+    if ! podman container exists "$DJANGO_CONTAINER_NAME" || [ "$(podman container inspect -f '{{.State.Running}}' "$DJANGO_CONTAINER_NAME")" != "true" ]; then
+        echo "Django container is not running. Attempting to restart..."
+        podman restart "$DJANGO_CONTAINER_NAME"
+        sleep 5
+    fi
+
+    # Export required environment variables
+    export POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME"
+    export POSTGRES_USER="$POSTGRES_USER"
+    export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+    export POSTGRES_DB="$POSTGRES_DB"
+
+    # Use the interactive container to create a Django user with proper environment setup
+    echo "Creating a new Django user..."
+    podman exec -it \
+        -e POSTGRES_CONTAINER_NAME="$POSTGRES_CONTAINER_NAME" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        "$INTERACT_CONTAINER_NAME" bash -c "
     source /app/support/venv/bin/activate
     cd /app/django_auth
     python manage.py createsuperuser
@@ -1271,14 +1268,14 @@ create_user() {
 
 # Check if the command exists as a function
 if [ "$COMMAND" = "run_cmd" ]; then
-  # If command is run_cmd, pass all remaining arguments to it
-  shift 2  # Remove APP_NAME and COMMAND
-  run_cmd "$@"
+    # If command is run_cmd, pass all remaining arguments to it
+    shift 2 # Remove APP_NAME and COMMAND
+    run_cmd "$@"
 elif [ "$(type -t "$COMMAND")" = "function" ]; then
-  # Execute other commands normally
-  $COMMAND
+    # Execute other commands normally
+    $COMMAND
 else
-  echo "Error: Unknown command '$COMMAND'"
-  echo "Available commands: init, start, stop, db, pg, cek, create_user, run_cmd"
-  exit 1
+    echo "Error: Unknown command '$COMMAND'"
+    echo "Available commands: init, start, stop, db, pg, cek, create_user, run_cmd"
+    exit 1
 fi
