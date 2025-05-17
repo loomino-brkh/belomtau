@@ -1044,7 +1044,7 @@ run_cmd() {
 
 pg() {
     echo "Starting pgAdmin container..."
-    podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+    podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
