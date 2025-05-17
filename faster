@@ -1135,7 +1135,7 @@ db() {
 
 pod_create() {
     echo "Creating pod..."
-    podman pod create --name "$POD_NAME" --network bridge
+    podman pod create --name "$POD_NAME" --restart always --network bridge
 }
 
 run_django() {
