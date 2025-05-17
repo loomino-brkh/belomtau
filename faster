@@ -81,7 +81,13 @@ SECRETS
 fi
 
 # Source environment configuration
-source "$ENV_FILE"
+# shellcheck source=/dev/null
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
+else
+    echo "Error: Environment configuration file not found: $ENV_FILE"
+    exit 1
+fi
 
 # Load secrets
 set -a
@@ -170,7 +176,7 @@ django_auth/static/
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*\$py.class
 *.so
 .Python
 build/
@@ -1002,7 +1008,7 @@ run_cfl_tunnel() {
     echo "Starting Cloudflare tunnel..."
     podman run -d --pod "$POD_NAME" --name "$CFL_TUNNEL_CONTAINER_NAME" \
         docker.io/cloudflare/cloudflared:latest tunnel --no-autoupdate run \
-        --token $(cat "$SUPPORT_DIR/token")
+        --token "$(cat "$SUPPORT_DIR/token")"
 }
 
 run_uvicorn() {
@@ -1044,7 +1050,7 @@ run_cmd() {
 
 pg() {
     echo "Starting pgAdmin container..."
-    podman run -d --rm --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
+    podman run -d --pod "$POD_NAME" --name "$PGADMIN_CONTAINER_NAME" \
         -e "PGADMIN_DEFAULT_EMAIL=dyka@brkh.work" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_LISTEN_PORT=5050" \
@@ -1183,7 +1189,7 @@ start() {
 cek() {
     if podman pod exists "$POD_NAME"; then
         if [ "$(podman pod ps --filter name="$POD_NAME" --format "{{.Status}}" | awk '{print $1}')" = "Running" ]; then
-            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}"; do
+            for container in "${POSTGRES_CONTAINER_NAME}" "${REDIS_CONTAINER_NAME}" "${DJANGO_CONTAINER_NAME}" "${UVICORN_CONTAINER_NAME}" "${NGINX_CONTAINER_NAME}" "${CFL_TUNNEL_CONTAINER_NAME}" "${INTERACT_CONTAINER_NAME}" "${PGADMIN_CONTAINER_NAME}"; do
                 if [ "$(podman ps --filter name="$container" --format "{{.Status}}" | awk '{print $1}')" != "Up" ]; then
                     echo "Container $container is not running. Restarting..."
                     podman start "$container" || {
