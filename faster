@@ -1184,6 +1184,7 @@ esse() {
 start() {
     pod_create
     esse
+    pg
 }
 
 cek() {
