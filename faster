@@ -51,6 +51,7 @@ PYTHON_IMAGE="docker.io/library/python:latest"
 REDIS_IMAGE="docker.io/valkey/valkey:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
 PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
+INTERACT_IMAGE="docker.io/library/python:latest"
 
 # Path settings
 ROOT_DIR="$HOME/.root_dir"
