@@ -68,7 +68,7 @@ PORT3="8001"  # Django port
 # Database settings
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 PYTHON_IMAGE="docker.io/library/python:latest"
-REDIS_IMAGE="docker.io/library/redis:latest"
+REDIS_IMAGE="docker.io/valkey/valkey:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
 PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
 INTERACT_IMAGE="docker.io/library/python:latest"
