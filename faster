@@ -79,6 +79,12 @@ DJANGO_SECRET_KEY=$django_key
 REDIS_PASSWORD=$redis_pass
 SECRETS
     chmod 600 "${SUPPORT_DIR}/secrets.env"
+
+# ensure secrets.env exists to satisfy LSP
+if [ ! -e "${SUPPORT_DIR}/secrets.env" ]; then
+    touch "${SUPPORT_DIR}/secrets.env"
+fi
+
 fi
 
 # Source environment configuration
@@ -93,6 +99,7 @@ fi
 # Load secrets
 set -a
 if [ -f "${SUPPORT_DIR}/secrets.env" ]; then
+    # shellcheck disable=SC1091
     source "${SUPPORT_DIR}/secrets.env"
 else
     echo "Warning: secrets.env not found, skipping"
