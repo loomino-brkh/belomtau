@@ -2,3 +2,5 @@
 .aider.*
 .env
 *-tree
+.vectorcode/
+
