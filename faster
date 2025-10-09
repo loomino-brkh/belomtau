@@ -48,12 +48,12 @@ PORT3="8001"  # Django port
 # Database settings
 POSTGRES_IMAGE="docker.io/library/postgres:16"
 # PYTHON_IMAGE="docker.io/library/python:latest"
-PYTHON_IMAGE="ghcr.io/astral-sh/uv:python3.14-trixie"
+PYTHON_IMAGE="ghcr.io/astral-sh/uv:python3.13-trixie"
 REDIS_IMAGE="docker.io/valkey/valkey:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
 PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
 # INTERACT_IMAGE="docker.io/library/python:latest"
-INTERACT_IMAGE="ghcr.io/astral-sh/uv:python3.14-trixie"
+INTERACT_IMAGE="ghcr.io/astral-sh/uv:python3.13-trixie"
 
 # Path settings
 ROOT_DIR="$HOME/.root_dir"
