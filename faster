@@ -47,11 +47,13 @@ PORT3="8001"  # Django port
 
 # Database settings
 POSTGRES_IMAGE="docker.io/library/postgres:16"
-PYTHON_IMAGE="docker.io/library/python:latest"
+# PYTHON_IMAGE="docker.io/library/python:latest"
+PYTHON_IMAGE="ghcr.io/astral-sh/uv:python3.14-trixie"
 REDIS_IMAGE="docker.io/valkey/valkey:latest"
 NGINX_IMAGE="docker.io/library/nginx:latest"
 PGADMIN_IMAGE="docker.io/dpage/pgadmin4:latest"
-INTERACT_IMAGE="docker.io/library/python:latest"
+# INTERACT_IMAGE="docker.io/library/python:latest"
+INTERACT_IMAGE="ghcr.io/astral-sh/uv:python3.14-trixie"
 
 # Path settings
 ROOT_DIR="$HOME/.root_dir"
@@ -80,10 +82,10 @@ REDIS_PASSWORD=$redis_pass
 SECRETS
     chmod 600 "${SUPPORT_DIR}/secrets.env"
 
-# ensure secrets.env exists to satisfy LSP
-if [ ! -e "${SUPPORT_DIR}/secrets.env" ]; then
-    touch "${SUPPORT_DIR}/secrets.env"
-fi
+    # ensure secrets.env exists to satisfy LSP
+    if [ ! -e "${SUPPORT_DIR}/secrets.env" ]; then
+        touch "${SUPPORT_DIR}/secrets.env"
+    fi
 
 fi
 
@@ -130,10 +132,11 @@ rev() {
     apt-get install -y curl build-essential && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     . \$HOME/.cargo/env && \
-    python -m venv /app/support/venv && \
+    uv venv /app/support/venv && \
     source /app/support/venv/bin/activate && \
-    pip install --upgrade pip && \
-    pip install -r /app/support/requirements.txt"
+    uv pip install --upgrade pip && \
+    uv pip install -r /app/support/requirements.txt && \
+    uv sync"
 }
 
 init() {
@@ -494,10 +497,10 @@ if not User.objects.filter(username='admin').exists():
 EOF
 
 # Collect static files
-python manage.py collectstatic --noinput
+uv run manage.py collectstatic --noinput
 
 # Run with gunicorn
-exec gunicorn auth_project.wsgi:application \
+uv run -- gunicorn auth_project.wsgi:application \
     --bind 0.0.0.0:8001 \
     --workers 2 \
     --threads 2 \
@@ -805,7 +808,7 @@ source /app/support/venv/bin/activate
 cd /app/main
 
 # Run uvicorn with simplified logging
-exec uvicorn main:app \
+uv run -- uvicorn main:app \
   --reload \
   --host 0.0.0.0 \
   --port 8000 \
@@ -1105,12 +1108,12 @@ db() {
       cd /app/django_auth
 
       echo 'Making Django migrations...'
-      python manage.py makemigrations
-      python manage.py makemigrations authentication
+      uv run manage.py makemigrations
+      uv run manage.py makemigrations authentication
 
       echo 'Applying Django migrations...'
-      python manage.py migrate
-      python manage.py migrate authentication
+      uv run manage.py migrate
+      uv run manage.py migrate authentication
 
       echo 'Django migrations completed successfully.'
     " || {
